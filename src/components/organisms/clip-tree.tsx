@@ -9,7 +9,6 @@ import {
   useEffectEvent,
   useId,
   useRef,
-  useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Virtualizer, type VirtualizerHandle } from 'virtua';
@@ -138,7 +137,7 @@ export const ClipTree = ({ scrollToActive = false }: { scrollToActive?: boolean 
   const query = useDeferredValue(useClipSearch().query);
   const visible = filterClipGroups(groups, query);
   const searching = visible !== groups;
-  const [toggled, setToggled] = useState({ query, open: {} as Record<string, boolean> });
+  const toggled = useStudio((state) => state.clipFolders);
   const viewportRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<VirtualizerHandle>(null);
 
@@ -160,9 +159,11 @@ export const ClipTree = ({ scrollToActive = false }: { scrollToActive?: boolean 
     isOpen: (folder: string, fallback: boolean) =>
       (toggled.query === query ? toggled.open[folder] : undefined) ?? fallback,
     setOpen: (folder: string, open: boolean) =>
-      setToggled((previous) => ({
-        query,
-        open: { ...(previous.query === query ? previous.open : {}), [folder]: open },
+      setStudio(({ clipFolders }) => ({
+        clipFolders: {
+          query,
+          open: { ...(clipFolders.query === query ? clipFolders.open : {}), [folder]: open },
+        },
       })),
   };
 

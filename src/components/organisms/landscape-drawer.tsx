@@ -17,7 +17,7 @@ export const LandscapeDrawer = ({ panels }: { panels: Record<PanelTab, ReactNode
   const { t } = useTranslation();
   const open = useStudio((state) => state.drawerOpen);
   const tab = useStudio((state) => state.panelTab);
-  const touchStartX = useRef(0);
+  const touchStartX = useRef<number | null>(null);
   const setOpen = (drawerOpen: boolean) => setStudio({ drawerOpen });
 
   return (
@@ -36,11 +36,14 @@ export const LandscapeDrawer = ({ panels }: { panels: Record<PanelTab, ReactNode
           side="left"
           className="w-[360px] max-w-[86vw] gap-3 p-3"
           onTouchStart={(event) => {
-            touchStartX.current = event.touches[0]?.clientX ?? 0;
+            touchStartX.current = (event.target as Element).closest('[data-slot="slider"]')
+              ? null
+              : (event.touches[0]?.clientX ?? null);
           }}
           onTouchEnd={(event) => {
-            const endX = event.changedTouches[0]?.clientX ?? touchStartX.current;
-            if (endX - touchStartX.current < -40) setOpen(false);
+            const startX = touchStartX.current;
+            const endX = event.changedTouches[0]?.clientX;
+            if (startX !== null && endX !== undefined && endX - startX < -40) setOpen(false);
           }}
         >
           <Tabs

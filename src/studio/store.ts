@@ -55,6 +55,7 @@ export interface ExportStatus {
 
 export interface StudioState {
   folderGroups: FolderGroup[];
+  clipFolders: { query: string; open: Record<string, boolean> };
   activeClip: ClipItem | null;
   isPlaying: boolean;
   currentTimeSec: number;
@@ -113,6 +114,7 @@ const linkedLegalDoc = z
 
 export const useStudio = create<StudioState>()(() => ({
   folderGroups: [],
+  clipFolders: { query: '', open: {} },
   activeClip: null,
   isPlaying: false,
   currentTimeSec: 0,

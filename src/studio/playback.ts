@@ -258,6 +258,7 @@ export const resetSession = () => {
   canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
   setStudio({
     folderGroups: [],
+    clipFolders: { query: '', open: {} },
     activeClip: null,
     isPlaying: false,
     startPoint: null,

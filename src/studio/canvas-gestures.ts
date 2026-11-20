@@ -85,7 +85,7 @@ const cameraAt = (cx: number, cy: number, frontH: number, scale: number): Camera
   if (options.pillar_pip) {
     const pw = Math.round((quad ? 236 : 320) * scale);
     const ph = Math.round((quad ? 132 : 180) * scale);
-    const margin = Math.round(12 * scale);
+    const margin = Math.round(8 * scale);
     const top = frontH - ph - margin;
     const frontW = quad ? width : width - Math.round(480 * scale);
     if (cy >= top && cy <= top + ph) {

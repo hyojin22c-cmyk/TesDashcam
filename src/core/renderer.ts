@@ -1,5 +1,3 @@
-import { clamp, compact, sumBy } from 'es-toolkit';
-
 import { OpenStreetMapTileLoader } from './map-loader';
 import { drawQRCode } from './qr-code';
 import { correctRearFrame } from './rear-correction';
@@ -71,80 +69,28 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   draggingCol: null,
 };
 
-const FONT_FAMILY = '"Pretendard Variable", Pretendard, system-ui, sans-serif';
-
-const COLOR = {
-  surface: '#000000',
-  text: '#ffffff',
-  muted: 'rgba(255, 255, 255, 0.5)',
-  faint: 'rgba(255, 255, 255, 0.3)',
-  track: 'rgba(255, 255, 255, 0.1)',
-  hover: 'rgba(255, 255, 255, 0.08)',
-  glass: 'rgba(0, 0, 0, 0.5)',
-  primary: '#226cff',
-  danger: '#ff4e4e',
-  qr: '#e3e3e3',
-};
-
-const font = (weight: number, px: number) => `${weight} ${Math.round(px)}px ${FONT_FAMILY}`;
-
-const CAMERA_LABELS: Record<CameraKey, string> = {
-  front: 'Front',
-  back: 'Rear',
-  left_repeater: 'Left',
-  right_repeater: 'Right',
-  left_pillar: 'Left pillar',
-  right_pillar: 'Right pillar',
-};
-
-const COLUMN_CAPTIONS: Record<string, string> = {
-  timestamp: 'Time',
-  steering: 'Steering',
-  turn_signal: 'Blinker',
-  speed: 'Speed',
-  pedal: 'Pedals',
-};
-
-const DRIVE_MODES = [
-  { key: 'MANUAL', label: 'Manual', color: '#6e6e73' },
-  { key: 'TACC', label: 'TACC', color: '#1f9d55' },
-  { key: 'AUTOPILOT', label: 'Autopilot', color: '#226cff' },
-  { key: 'FSD', label: 'FSD', color: '#7c4dff' },
-];
-
-const glyphWidths = new Map<string, number>();
-
-const glyphWidth = (ctx: CanvasRenderingContext2D, ch: string) => {
-  const glyph = /\d/.test(ch) ? '0' : ch;
-  const key = `${ctx.font}|${glyph}`;
-  let width = glyphWidths.get(key);
-  if (width === undefined) {
-    width = ctx.measureText(glyph).width;
-    glyphWidths.set(key, width);
+// Some mobile Canvas 2D implementations do not expose filter.
+const adjustPixels = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  brightness: number,
+  contrast: number,
+) => {
+  const pixels = ctx.getImageData(0, 0, width, height);
+  const multiplier = (1 + brightness / 100) * contrast;
+  const offset = 127.5 * (1 - contrast);
+  const lookup = Uint8ClampedArray.from({ length: 256 }, (_, value) => value * multiplier + offset);
+  const { data } = pixels;
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = lookup[data[i]];
+    data[i + 1] = lookup[data[i + 1]];
+    data[i + 2] = lookup[data[i + 2]];
   }
-  return width;
+  ctx.putImageData(pixels, 0, 0);
 };
 
 export class OverlayRenderer {
-  static measureTabular(ctx: CanvasRenderingContext2D, text: string): number {
-    let width = 0;
-    for (const ch of text) width += glyphWidth(ctx, ch);
-    return width;
-  }
-
-  static fillTabular(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): number {
-    ctx.save();
-    ctx.textAlign = 'center';
-    let cx = x;
-    for (const ch of text) {
-      const w = glyphWidth(ctx, ch);
-      ctx.fillText(ch, cx + w / 2, y);
-      cx += w;
-    }
-    ctx.restore();
-    return cx - x;
-  }
-
   static drawSubSlotCover(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -162,7 +108,7 @@ export class OverlayRenderer {
     ctx.rect(x, y, w, h);
     ctx.clip();
 
-    ctx.fillStyle = COLOR.surface;
+    ctx.fillStyle = '#0b0d10';
     ctx.fillRect(x, y, w, h);
 
     if (source) {
@@ -189,6 +135,7 @@ export class OverlayRenderer {
             sy = (sh - sCropH) / 2;
           }
 
+          // Keep the top of the cover crop fixed and zoom uniformly into it.
           sx += (sCropW * bottomCrop) / 2;
           sCropW *= 1 - bottomCrop;
           sCropH *= 1 - bottomCrop;
@@ -198,44 +145,25 @@ export class OverlayRenderer {
           if (corrected) ctx.drawImage(corrected, x, y, w, h);
           else ctx.drawImage(source, sx, sy, sCropW, sCropH, x, y, w, h);
         }
-      } catch {}
+      } catch {
+        // Fallback if video frame not ready
+      }
     }
 
-    ctx.strokeStyle = COLOR.surface;
-    ctx.lineWidth = Math.max(2, Math.round(2 * scale));
+    // Subtle dark slate border
+    ctx.strokeStyle = '#1e2430';
+    ctx.lineWidth = Math.max(1, Math.round(scale));
     ctx.strokeRect(x, y, w, h);
 
-    if (label) this.drawSlotBadge(ctx, x, y, label, scale);
+    // Label Badge - matching PC version: bright yellow background with black bold text
+    if (label) {
+      this.drawSlotBadge(ctx, x, y, label, scale);
+    }
 
     ctx.restore();
   }
 
-  static drawGlassPill(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    text: string,
-    scale: number,
-    align: 'left' | 'right' = 'left',
-  ): void {
-    const fontSize = Math.max(10, Math.round(13 * scale));
-    ctx.save();
-    ctx.font = font(600, fontSize);
-    const padX = Math.round(10 * scale);
-    const h = Math.round(fontSize + 12 * scale);
-    const w = ctx.measureText(text).width + padX * 2;
-    const left = align === 'left' ? x : x - w;
-    ctx.fillStyle = COLOR.glass;
-    ctx.beginPath();
-    ctx.roundRect(left, y, w, h, h / 2);
-    ctx.fill();
-    ctx.fillStyle = COLOR.text;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, left + padX, y + h / 2);
-    ctx.restore();
-  }
-
+  // Matches PC version: small yellow badge in the top-left corner
   static drawSlotBadge(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -243,8 +171,29 @@ export class OverlayRenderer {
     label: string,
     scale = 1.0,
   ): void {
-    const inset = Math.round(12 * scale);
-    this.drawGlassPill(ctx, x + inset, y + inset, label, scale);
+    ctx.save();
+    const fontSize = Math.max(9, Math.round(11 * scale));
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    const metrics = ctx.measureText(label);
+    const tw = metrics.width;
+    const th = fontSize;
+
+    const padX = 6 * scale;
+    const padY = 2 * scale;
+    const bw = tw + padX * 2;
+    const bh = th + padY * 2;
+
+    // Bright yellow badge background
+    ctx.fillStyle = 'rgba(250, 204, 21, 0.95)';
+    ctx.fillRect(x, y, bw, bh);
+
+    // Black text
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, x + padX, y + padY);
+
+    ctx.restore();
   }
 
   static drawTurnSignals(
@@ -258,59 +207,101 @@ export class OverlayRenderer {
     scale = 1.0,
   ): void {
     const isBlinkPhase = Math.floor((frameIdx / fps) * 3.5) % 2 === 0;
-    const tip = Math.round(46 * scale);
-    const head = Math.round(22 * scale);
-    const stemEnd = Math.round(8 * scale);
-    const headY = Math.round(16 * scale);
-    const stemY = Math.round(6 * scale);
+    const lActive = leftOn && isBlinkPhase;
+    const rActive = rightOn && isBlinkPhase;
+
+    const lFill = lActive ? '#55f500' : '#262c36';
+    const rFill = rActive ? '#55f500' : '#262c36';
+    const lEdge = lActive ? '#c8ffd2' : '#444c5a';
+    const rEdge = rActive ? '#c8ffd2' : '#444c5a';
+
+    const thick = Math.max(1, Math.round(1.8 * scale));
+    const lTipX = cx - Math.round(48 * scale);
+    const lHeadX = cx - Math.round(22 * scale);
+    const lStemEndX = cx - Math.round(8 * scale);
+
+    const rTipX = cx + Math.round(48 * scale);
+    const rHeadX = cx + Math.round(22 * scale);
+    const rStemEndX = cx + Math.round(8 * scale);
+
+    const headY = Math.round(17 * scale);
+    const stemY = Math.round(7 * scale);
 
     ctx.save();
-    for (const [direction, on] of [
-      [-1, leftOn],
-      [1, rightOn],
-    ] as const) {
-      ctx.beginPath();
-      ctx.moveTo(cx + direction * tip, cy);
-      ctx.lineTo(cx + direction * head, cy - headY);
-      ctx.lineTo(cx + direction * head, cy - stemY);
-      ctx.lineTo(cx + direction * stemEnd, cy - stemY);
-      ctx.lineTo(cx + direction * stemEnd, cy + stemY);
-      ctx.lineTo(cx + direction * head, cy + stemY);
-      ctx.lineTo(cx + direction * head, cy + headY);
-      ctx.closePath();
-      ctx.fillStyle = on && isBlinkPhase ? COLOR.text : COLOR.track;
-      ctx.fill();
-    }
+
+    // Left Arrow polygon
+    ctx.beginPath();
+    ctx.moveTo(lTipX, cy);
+    ctx.lineTo(lHeadX, cy - headY);
+    ctx.lineTo(lHeadX, cy - stemY);
+    ctx.lineTo(lStemEndX, cy - stemY);
+    ctx.lineTo(lStemEndX, cy + stemY);
+    ctx.lineTo(lHeadX, cy + stemY);
+    ctx.lineTo(lHeadX, cy + headY);
+    ctx.closePath();
+    ctx.fillStyle = lFill;
+    ctx.fill();
+    ctx.strokeStyle = lEdge;
+    ctx.lineWidth = thick;
+    ctx.stroke();
+
+    // Right Arrow polygon
+    ctx.beginPath();
+    ctx.moveTo(rTipX, cy);
+    ctx.lineTo(rHeadX, cy - headY);
+    ctx.lineTo(rHeadX, cy - stemY);
+    ctx.lineTo(rStemEndX, cy - stemY);
+    ctx.lineTo(rStemEndX, cy + stemY);
+    ctx.lineTo(rHeadX, cy + stemY);
+    ctx.lineTo(rHeadX, cy + headY);
+    ctx.closePath();
+    ctx.fillStyle = rFill;
+    ctx.fill();
+    ctx.strokeStyle = rEdge;
+    ctx.lineWidth = thick;
+    ctx.stroke();
+
     ctx.restore();
   }
 
-  static drawSteeringWheel(
+  static drawRotatedSteering(
     ctx: CanvasRenderingContext2D,
     cx: number,
     cy: number,
     angleDeg: number,
     scale = 1.0,
+    wheelPx = 96,
   ): void {
-    const ring = 34 * scale;
-    const hub = 8 * scale;
+    const size = Math.round(wheelPx * scale);
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate((angleDeg * Math.PI) / 180);
-    ctx.strokeStyle = COLOR.text;
-    ctx.lineCap = 'round';
-    ctx.lineWidth = Math.max(2, 5 * scale);
+
     ctx.beginPath();
-    ctx.arc(0, 0, ring, 0, Math.PI * 2);
+    ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+    ctx.lineWidth = Math.max(2, Math.round(7 * scale));
+    ctx.strokeStyle = '#d0d7de';
     ctx.stroke();
-    ctx.lineWidth = Math.max(2, 4 * scale);
+
+    // Center cap
     ctx.beginPath();
-    ctx.arc(0, 0, hub, 0, Math.PI * 2);
+    ctx.arc(0, 0, size / 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#262c36';
+    ctx.fill();
+    ctx.strokeStyle = '#d0d7de';
+    ctx.lineWidth = Math.max(1, Math.round(2 * scale));
     ctx.stroke();
+
+    // Spokes
     ctx.beginPath();
-    for (const angle of [0, Math.PI / 2, Math.PI]) {
-      ctx.moveTo(Math.cos(angle) * hub, Math.sin(angle) * hub);
-      ctx.lineTo(Math.cos(angle) * ring, Math.sin(angle) * ring);
-    }
+    ctx.moveTo(-size / 2 + 3, 0);
+    ctx.lineTo(-size / 4.5, 0);
+    ctx.moveTo(size / 2 - 3, 0);
+    ctx.lineTo(size / 4.5, 0);
+    ctx.moveTo(0, size / 4.5);
+    ctx.lineTo(0, size / 2 - 3);
+    ctx.lineWidth = Math.max(2, Math.round(4 * scale));
+    ctx.strokeStyle = '#8b949e';
     ctx.stroke();
     ctx.restore();
   }
@@ -348,7 +339,7 @@ export class OverlayRenderer {
       .map((k) => [k, Math.round(COL_WIDTH_BASE[k] * scale)] as [string, number]);
 
     const numActive = activeCols.length;
-    const totalColW = sumBy(activeCols, ([, w]) => w);
+    const totalColW = activeCols.reduce((acc, [, w]) => acc + w, 0);
 
     const colBoxMap: Record<string, [number, number]> = {};
     const fsdDividers: number[] = [];
@@ -423,7 +414,7 @@ export class OverlayRenderer {
     canvas: HTMLCanvasElement,
     frames: Partial<Record<CameraKey, CanvasImageSource | null>>,
     telemetry: TelemetryData,
-    baseDateStr: string,
+    baseDateStr: string, // YYYY-MM-DD
     currentTimeSec: number,
     frameIdx: number,
     fps: number,
@@ -435,30 +426,32 @@ export class OverlayRenderer {
     const outW = canvas.width;
     const outH = canvas.height;
     const scale = outW / 1920.0;
-    const px = (value: number) => Math.round(value * scale);
 
-    const b = options.brightness;
-    const c = options.contrast;
-    ctx.filter = b !== 0 || c !== 1.0 ? `brightness(${100 + b}%) contrast(${c * 100}%)` : 'none';
+    const { brightness, contrast } = options;
+    const adjusted = brightness !== 0 || contrast !== 1;
+    const canvasFilter = typeof ctx.filter === 'string';
+    if (canvasFilter) {
+      ctx.filter = adjusted
+        ? `brightness(${100 + brightness}%) contrast(${contrast * 100}%)`
+        : 'none';
+    }
 
-    const { colBoxMap, offsetX, frontH, bottomH, qrPx, qrPadR } = this.computeTelemetryLayout(
-      options,
-      outW,
-      outH,
-    );
+    const { colBoxMap, fsdDividers, offsetX, frontH, bottomH, qrPx, qrPadR } =
+      this.computeTelemetryLayout(options, outW, outH);
     const rearCrop = options.rear_crop ? REAR_BOTTOM_CROP : 0;
     const hasBottomHud = bottomH > 0;
     const mapW = options.map ? offsetX : 0;
-    const isQuad = options.layout === 'quad';
-    const isSingle = options.layout === 'single';
 
-    ctx.fillStyle = COLOR.surface;
+    // Clear background
+    ctx.fillStyle = '#080b10';
     ctx.fillRect(0, 0, outW, outH);
 
-    if (isQuad) {
+    // 1. Layout Rendering
+    if (options.layout === 'quad') {
       const halfW = Math.floor(outW / 2);
       const halfH = Math.floor(frontH / 2);
-      this.drawSubSlotCover(ctx, 0, 0, halfW, halfH, frames.front, CAMERA_LABELS.front, scale);
+
+      this.drawSubSlotCover(ctx, 0, 0, halfW, halfH, frames.front, 'FRONT', scale);
       this.drawSubSlotCover(
         ctx,
         0,
@@ -466,7 +459,7 @@ export class OverlayRenderer {
         halfW,
         frontH - halfH,
         frames.back,
-        CAMERA_LABELS.back,
+        'REAR',
         scale,
         rearCrop,
         options.rear_correction,
@@ -478,7 +471,7 @@ export class OverlayRenderer {
         outW - halfW,
         halfH,
         frames.left_repeater,
-        CAMERA_LABELS.left_repeater,
+        'LEFT REPEATER',
         scale,
       );
       this.drawSubSlotCover(
@@ -488,11 +481,29 @@ export class OverlayRenderer {
         outW - halfW,
         frontH - halfH,
         frames.right_repeater,
-        CAMERA_LABELS.right_repeater,
+        'RIGHT REPEATER',
         scale,
       );
-    } else if (isSingle) {
+
+      // Grid dividers
+      ctx.strokeStyle = '#373c46';
+      ctx.lineWidth = Math.max(2, Math.round(2.5 * scale));
+      ctx.beginPath();
+      ctx.moveTo(halfW, 0);
+      ctx.lineTo(halfW, frontH);
+      ctx.moveTo(0, halfH);
+      ctx.lineTo(outW, halfH);
+      ctx.stroke();
+    } else if (options.layout === 'single') {
       const key = options.single_cam || 'front';
+      const labelMap: Record<string, string> = {
+        front: 'FRONT MAIN',
+        back: 'REAR',
+        left_repeater: 'LEFT REPEATER',
+        right_repeater: 'RIGHT REPEATER',
+        left_pillar: 'LEFT PILLAR',
+        right_pillar: 'RIGHT PILLAR',
+      };
       this.drawSubSlotCover(
         ctx,
         0,
@@ -500,16 +511,19 @@ export class OverlayRenderer {
         outW,
         frontH,
         frames[key],
-        CAMERA_LABELS[key],
+        labelMap[key] || key.toUpperCase(),
         scale,
         key === 'back' ? rearCrop : 0,
         key === 'back' && options.rear_correction,
       );
     } else {
-      const subW = px(480);
+      // 기본 (1:3 세로배치)
+      const subW = Math.round(480 * scale);
       const frontW = outW - subW;
+
+      this.drawSubSlotCover(ctx, 0, 0, frontW, frontH, frames.front, 'FRONT MAIN', scale);
+
       const subH = Math.floor(frontH / 3);
-      this.drawSubSlotCover(ctx, 0, 0, frontW, frontH, frames.front, CAMERA_LABELS.front, scale);
       this.drawSubSlotCover(
         ctx,
         frontW,
@@ -517,7 +531,7 @@ export class OverlayRenderer {
         subW,
         subH,
         frames.back,
-        CAMERA_LABELS.back,
+        'REAR',
         scale,
         rearCrop,
         options.rear_correction,
@@ -529,7 +543,7 @@ export class OverlayRenderer {
         subW,
         subH,
         frames.left_repeater,
-        CAMERA_LABELS.left_repeater,
+        'LEFT REPEATER',
         scale,
       );
       this.drawSubSlotCover(
@@ -539,60 +553,119 @@ export class OverlayRenderer {
         subW,
         frontH - subH * 2,
         frames.right_repeater,
-        CAMERA_LABELS.right_repeater,
+        'RIGHT REPEATER',
         scale,
       );
     }
 
+    // B-Pillar PIP
     if (options.pillar_pip) {
-      const pw = px(isQuad ? 236 : 320);
-      const ph = px(isQuad ? 132 : 180);
-      const pipY = frontH - ph - px(12);
+      const is2x2 = options.layout === 'quad';
+      const pw = Math.round((is2x2 ? 236 : 320) * scale);
+      const ph = Math.round((is2x2 ? 132 : 180) * scale);
+
       if (frames.left_pillar) {
         this.drawSubSlotCover(
           ctx,
-          px(12),
-          pipY,
+          Math.round(8 * scale),
+          frontH - ph - Math.round(8 * scale),
           pw,
           ph,
           frames.left_pillar,
-          CAMERA_LABELS.left_pillar,
+          'LEFT PILLAR',
           scale,
         );
       }
       if (frames.right_pillar) {
-        const right = isQuad || isSingle ? outW : outW - px(480);
+        const is2x2 = options.layout === 'quad';
+        const isSingle = options.layout === 'single';
+        let px = outW - pw - Math.round(8 * scale);
+        if (!is2x2 && !isSingle) {
+          // 1:3 layout: position at the bottom-right of the main front camera slot
+          const frontW = outW - Math.round(480 * scale);
+          px = frontW - pw - Math.round(8 * scale);
+        }
         this.drawSubSlotCover(
           ctx,
-          right - pw - px(12),
-          pipY,
+          px,
+          frontH - ph - Math.round(8 * scale),
           pw,
           ph,
           frames.right_pillar,
-          CAMERA_LABELS.right_pillar,
+          'RIGHT PILLAR',
           scale,
         );
       }
     }
 
-    const viewSpeed = options.playbackSpeed || 1.0;
-    const saveSpeed = options.exportSpeed || 1.0;
-    const speedLabels = compact([
-      Math.abs(viewSpeed - 1.0) > 0.01 ? `View ${viewSpeed.toFixed(1)}x` : null,
-      Math.abs(saveSpeed - 1.0) > 0.01 ? `Save ${saveSpeed.toFixed(1)}x` : null,
-    ]);
-    if (speedLabels.length > 0) {
-      const right = (options.layout === 'front-focus' ? outW - px(480) : outW) - px(12);
-      this.drawGlassPill(ctx, right, px(12), speedLabels.join(' · '), scale, 'right');
+    if (adjusted && !canvasFilter) {
+      adjustPixels(ctx, outW, frontH, brightness, contrast);
     }
 
-    ctx.filter = 'none';
+    // Speed Badge on Top-Right if non-1.0x
+    const pSpeed = options.playbackSpeed || 1.0;
+    const eSpeed = options.exportSpeed || 1.0;
+    let speedBadgeText: string | null = null;
+    if (Math.abs(pSpeed - 1.0) > 0.01 && Math.abs(eSpeed - 1.0) > 0.01) {
+      speedBadgeText = `VIEW ${pSpeed.toFixed(1)}x | SAVE ${eSpeed.toFixed(1)}x`;
+    } else if (Math.abs(pSpeed - 1.0) > 0.01) {
+      speedBadgeText = `VIEW ${pSpeed.toFixed(1)}x`;
+    } else if (Math.abs(eSpeed - 1.0) > 0.01) {
+      speedBadgeText = `SAVE ${eSpeed.toFixed(1)}x SPEED`;
+    }
 
+    if (speedBadgeText) {
+      ctx.save();
+      const sFont = Math.max(10, Math.round(13 * scale));
+      ctx.font = `bold ${sFont}px sans-serif`;
+      const sMetrics = ctx.measureText(speedBadgeText);
+      const sbw = sMetrics.width + 16 * scale;
+      const sbh = sFont + 8 * scale;
+      const sbx =
+        (options.layout === 'front-focus' ? outW - Math.round(480 * scale) : outW) -
+        sbw -
+        10 * scale;
+      const sby = 10 * scale;
+
+      ctx.fillStyle = 'rgba(12, 16, 24, 0.85)';
+      ctx.strokeStyle = '#00e6ff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(sbx, sby, sbw, sbh, 4 * scale);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#00e6ff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(speedBadgeText, sbx + sbw / 2, sby + sbh / 2);
+      ctx.restore();
+    }
+
+    // Reset filter for HUD
+    if (canvasFilter) ctx.filter = 'none';
+
+    // 2. Bottom HUD Bar
     if (hasBottomHud) {
       const hudY = frontH;
-      ctx.fillStyle = COLOR.surface;
-      ctx.fillRect(0, hudY, outW, bottomH);
+      const hudW = outW;
 
+      // Dark Navy Gradient Background (matching PC version: rgb(17,21,28) -> rgb(10,12,16))
+      const grad = ctx.createLinearGradient(0, hudY, 0, outH);
+      grad.addColorStop(0, '#11151c');
+      grad.addColorStop(1, '#0a0c10');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, hudY, hudW, bottomH);
+
+      // Top separator line
+      ctx.strokeStyle = '#3a3228';
+      ctx.lineWidth = Math.max(1, Math.round(1.5 * scale));
+      ctx.beginPath();
+      ctx.moveTo(0, hudY);
+      ctx.lineTo(outW, hudY);
+      ctx.stroke();
+
+      // OpenStreetMap Minimap
       if (options.map && mapW > 0) {
         OpenStreetMapTileLoader.drawMinimap(
           ctx,
@@ -604,238 +677,429 @@ export class OverlayRenderer {
           telemetry.lon,
           telemetry.heading,
         );
-      }
 
-      const captionY = hudY + px(28);
-      const iconCenterY = hudY + px(103);
-
-      if (options.draggingCol && colBoxMap[options.draggingCol]) {
-        const [dx, dw] = colBoxMap[options.draggingCol];
-        const pad = px(10);
-        ctx.fillStyle = COLOR.hover;
+        // Right separator line of map
+        ctx.strokeStyle = '#3a3228';
         ctx.beginPath();
-        ctx.roundRect(offsetX + dx - pad, hudY + px(10), dw + pad * 2, bottomH - px(20), px(18));
+        ctx.moveTo(mapW, hudY);
+        ctx.lineTo(mapW, outH);
+        ctx.stroke();
+      }
+
+      // Vertical alignment grid constants
+      const hdrY = hudY + Math.round(16 * scale);
+      const iconCenterY = hudY + Math.round(103 * scale);
+
+      // Draw Header Dots and Titles
+      const headerMeta: Record<string, [string, string]> = {
+        speed: ['SPEED', '#ffc800'],
+        pedal: ['PEDALS', '#82eb50'],
+        steering: ['STEERING', '#ffd700'],
+        turn_signal: ['BLINKER', '#78f03c'],
+        timestamp: ['TIME', '#00e6ff'],
+      };
+
+      const dotR = Math.max(3, Math.round(4.2 * scale));
+
+      for (const [k, [cx1]] of Object.entries(colBoxMap)) {
+        if (k === 'fsd') continue;
+        const [titleTxt, dotColor] = headerMeta[k] || [k.toUpperCase(), '#ffd700'];
+        const dotCx = offsetX + cx1 + dotR;
+        const dotCy = hdrY + Math.round(6 * scale);
+
+        ctx.save();
+        ctx.fillStyle = dotColor;
+        ctx.beginPath();
+        ctx.arc(dotCx, dotCy, dotR, 0, Math.PI * 2);
         ctx.fill();
+
+        ctx.fillStyle = '#ded4ca';
+        ctx.font = `bold ${Math.round(16 * scale)}px sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(titleTxt, dotCx + Math.round(9 * scale), dotCy);
+        ctx.restore();
       }
 
-      ctx.save();
-      ctx.fillStyle = COLOR.muted;
-      ctx.font = font(500, 15 * scale);
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      for (const [key, [x]] of Object.entries(colBoxMap)) {
-        const caption = COLUMN_CAPTIONS[key];
-        if (caption) ctx.fillText(caption, offsetX + x, captionY);
+      // FSD Dividers
+      ctx.strokeStyle = '#483c32';
+      ctx.lineWidth = Math.max(1, Math.round(1.5 * scale));
+      const divY1 = hudY + Math.round(16 * scale);
+      const divY2 = outH - Math.round(24 * scale);
+      for (const divX of fsdDividers) {
+        ctx.beginPath();
+        ctx.moveTo(offsetX + divX, divY1);
+        ctx.lineTo(offsetX + divX, divY2);
+        ctx.stroke();
       }
-      ctx.restore();
 
+      // Highlight Dragging Column in Preview
+      if (options.draggingCol && colBoxMap[options.draggingCol]) {
+        const [dcx1, dcw] = colBoxMap[options.draggingCol];
+        const padHl = Math.round(8 * scale);
+        ctx.save();
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = Math.max(1, Math.round(2 * scale));
+        ctx.beginPath();
+        ctx.roundRect(
+          offsetX + Math.max(2, dcx1 - padHl),
+          hudY + Math.round(8 * scale),
+          dcw + padHl * 2,
+          bottomH - Math.round(18 * scale),
+          Math.round(8 * scale),
+        );
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 1. TIME Column (날짜 옐로우/골드 + 수평 분리선 + 큰 시각 화이트)
       if ('timestamp' in colBoxMap) {
-        const [x] = colBoxMap.timestamp;
-        const left = offsetX + x;
+        const [cx1] = colBoxMap.timestamp;
+        const tPosX = offsetX + cx1;
+
+        // Calculate accurate date/time using baseDateStr + currentTimeSec
         let dateStr = baseDateStr;
         let timeStr = '00:00:00';
         try {
-          const [datePart = '2026-10-07', timePart = '00:00:00'] = baseDateStr.split(' ');
+          const parts = baseDateStr.split(' ');
+          const datePart = parts[0] || '2026-10-07';
+          const timePart = parts[1] || '00:00:00';
           const [yy, mo, dd] = datePart.split('-').map(Number);
           const [hh, mi, ss] = timePart.split(':').map(Number);
           const d = new Date(yy, (mo || 1) - 1, dd || 1, hh || 0, mi || 0, ss || 0);
           d.setSeconds(d.getSeconds() + currentTimeSec);
-          const pad = (value: number) => String(value).padStart(2, '0');
-          dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-          timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-        } catch {}
+
+          dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+        } catch {
+          dateStr = baseDateStr;
+        }
 
         ctx.save();
+        // Date text
+        ctx.fillStyle = '#f5ca73';
+        ctx.font = `bold ${Math.round(21 * scale)}px sans-serif`;
         ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = COLOR.muted;
-        ctx.font = font(500, 18 * scale);
-        this.fillTabular(ctx, dateStr, left, hudY + px(76));
-        ctx.fillStyle = COLOR.text;
-        ctx.font = font(600, 40 * scale);
-        this.fillTabular(ctx, timeStr, left, hudY + px(124));
+        ctx.textBaseline = 'top';
+        ctx.fillText(dateStr, tPosX, hudY + Math.round(52 * scale));
+
+        // Horizontal separator line
+        ctx.strokeStyle = '#423830';
+        ctx.lineWidth = Math.max(1, Math.round(1.2 * scale));
+        ctx.beginPath();
+        ctx.moveTo(tPosX, hudY + Math.round(84 * scale));
+        ctx.lineTo(tPosX + Math.round(155 * scale), hudY + Math.round(84 * scale));
+        ctx.stroke();
+
+        // Time text (Large, white, bold)
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.round(33 * scale)}px monospace`;
+        ctx.fillText(timeStr, tPosX, hudY + Math.round(94 * scale));
+
+        // OpenStreetMap credit (time 밑 빈공간에 배경 박스 없이 옅은 회색으로 은은하게 텍스트만 배치)
         if (options.map) {
-          ctx.fillStyle = COLOR.faint;
-          ctx.font = font(400, 11 * scale);
-          ctx.fillText('Map: OpenStreetMap', left, hudY + px(156));
+          ctx.fillStyle = 'rgba(165, 172, 182, 0.55)';
+          ctx.font = `${Math.round(11 * scale)}px sans-serif`;
+          ctx.fillText('Map: OpenStreetMap', tPosX, hudY + Math.round(145 * scale));
         }
         ctx.restore();
       }
 
+      // 2. STEERING Column (중앙 정렬 휠 회전 이미지)
       if ('steering' in colBoxMap) {
-        const [x] = colBoxMap.steering;
-        this.drawSteeringWheel(
-          ctx,
-          offsetX + x + px(52),
-          iconCenterY,
-          telemetry.steering_deg,
-          scale,
-        );
+        const [cx1] = colBoxMap.steering;
+        const xWheel = offsetX + cx1 + Math.round(52 * scale);
+        this.drawRotatedSteering(ctx, xWheel, iconCenterY, telemetry.steering_deg, scale, 96);
       }
 
+      // 3. BLINKER Column (좌우 깜빡이 화살표)
       if ('turn_signal' in colBoxMap) {
-        const [x] = colBoxMap.turn_signal;
+        const [cx1] = colBoxMap.turn_signal;
+        const xBlinker = offsetX + cx1 + Math.round(52 * scale);
         this.drawTurnSignals(
           ctx,
-          offsetX + x + px(52),
+          xBlinker,
           iconCenterY,
           telemetry.left_blinker,
           telemetry.right_blinker,
           frameIdx,
           fps,
-          scale,
+          scale * 0.96,
         );
       }
 
+      // 4. SPEED Column (상단 프로그레스 바 + 노란색 숫자와 km/h)
       if ('speed' in colBoxMap) {
-        const [x] = colBoxMap.speed;
-        const speed = Math.round(telemetry.speed_kmh);
-        const barX = offsetX + x;
-        const barW = px(152);
-        const barH = Math.max(4, px(6));
-        const barY = hudY + px(58);
+        const [cx1] = colBoxMap.speed;
+        const spdVal = Math.round(telemetry.speed_kmh);
+        const barX1 = offsetX + cx1;
+        const barW = Math.round(152 * scale);
+        const barH = Math.max(4, Math.round(7 * scale));
+        const barY1 = hudY + Math.round(62 * scale);
+        const barR = Math.max(2, Math.round(3.5 * scale));
 
         ctx.save();
-        ctx.fillStyle = COLOR.track;
+        // Progress track
+        ctx.fillStyle = '#342922';
         ctx.beginPath();
-        ctx.roundRect(barX, barY, barW, barH, barH / 2);
+        ctx.roundRect(barX1, barY1, barW, barH, barR);
         ctx.fill();
-        const ratio = clamp(speed / 150, 0, 1);
-        if (ratio > 0.01) {
-          ctx.fillStyle = COLOR.primary;
+
+        // Progress fill (yellow)
+        const spdPct = Math.max(0, Math.min(1.0, spdVal / 150.0));
+        if (spdPct > 0.01) {
+          ctx.fillStyle = '#0ae4ff'; // yellow-gold in BGR is #ffe40a
+          ctx.fillStyle = '#ffe00a';
           ctx.beginPath();
-          ctx.roundRect(barX, barY, Math.max(barH, barW * ratio), barH, barH / 2);
+          ctx.roundRect(barX1, barY1, Math.max(barR * 2, barW * spdPct), barH, barR);
           ctx.fill();
         }
 
-        const number = String(speed);
-        ctx.font = font(600, 52 * scale);
-        const numberW = this.measureTabular(ctx, number);
-        ctx.font = font(500, 17 * scale);
-        const unitW = ctx.measureText('km/h').width;
-        const gap = px(8);
-        const startX = barX + Math.max(0, Math.round((barW - numberW - gap - unitW) / 2));
-        const baselineY = hudY + px(132);
+        // Speed Number & Unit
+        const spdStr = `${spdVal}`;
+        ctx.fillStyle = '#ffe00a';
+        ctx.font = `bold ${Math.round(48 * scale)}px sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = COLOR.text;
-        ctx.font = font(600, 52 * scale);
-        this.fillTabular(ctx, number, startX, baselineY);
-        ctx.fillStyle = COLOR.muted;
-        ctx.font = font(500, 17 * scale);
-        ctx.fillText('km/h', startX + numberW + gap, baselineY);
+        const numMetrics = ctx.measureText(spdStr);
+        const sW = numMetrics.width;
+
+        ctx.font = `600 ${Math.round(17 * scale)}px sans-serif`;
+        const uMetrics = ctx.measureText('km/h');
+        const uW = uMetrics.width;
+
+        const gapSu = Math.round(7 * scale);
+        const totalW = sW + gapSu + uW;
+        const startX = barX1 + Math.max(0, Math.round((barW - totalW) / 2));
+        const baselineY = hudY + Math.round(128 * scale);
+
+        // Draw Number
+        ctx.fillStyle = '#ffe00a';
+        ctx.font = `bold ${Math.round(48 * scale)}px sans-serif`;
+        ctx.fillText(spdStr, startX, baselineY);
+
+        // Draw Unit
+        ctx.fillStyle = '#d7cdc3';
+        ctx.font = `600 ${Math.round(17 * scale)}px sans-serif`;
+        ctx.fillText('km/h', startX + sW + gapSu, baselineY);
         ctx.restore();
       }
 
+      // 5. PEDALS Column (가속 세로 게이지 + ACC % / BRK ON/OFF)
       if ('pedal' in colBoxMap) {
-        const [x] = colBoxMap.pedal;
-        const accel = clamp(Math.round(telemetry.accel_pct), 0, 100);
-        const braking = telemetry.brake_applied || telemetry.brake_pct > 0;
-        const barW = px(16);
-        const top = hudY + px(50);
-        const bottom = hudY + px(146);
-        const barH = bottom - top;
-        const barX = offsetX + x;
-        const labelX = barX + barW + px(14);
-        const brakeX = offsetX + x + px(96);
+        const [cx1] = colBoxMap.pedal;
+        const accPct = Math.min(100, Math.max(0, Math.round(telemetry.accel_pct)));
+        const brkOn = telemetry.brake_applied || telemetry.brake_pct > 0;
+
+        const barW = Math.round(22 * scale);
+        const by1 = hudY + Math.round(58 * scale);
+        const by2 = hudY + Math.round(138 * scale);
+        const barH = by2 - by1;
+        const bx1 = offsetX + cx1;
+        const bx2 = bx1 + barW;
+        const br = Math.max(4, Math.round(barW / 2));
 
         ctx.save();
-        ctx.fillStyle = COLOR.track;
+        // Track
+        ctx.fillStyle = '#16120e';
+        ctx.strokeStyle = '#5f5246';
+        ctx.lineWidth = Math.max(1, Math.round(1.3 * scale));
         ctx.beginPath();
-        ctx.roundRect(barX, top, barW, barH, barW / 2);
+        ctx.roundRect(bx1, by1, barW, barH, br);
         ctx.fill();
-        if (accel > 0) {
-          const fillH = Math.max(barW, Math.round(barH * (accel / 100)));
-          ctx.fillStyle = COLOR.primary;
+        ctx.stroke();
+
+        // Ticks
+        for (const tFrac of [0.25, 0.5, 0.75]) {
+          const ty = Math.round(by1 + barH * tFrac);
+          ctx.strokeStyle = '#64584c';
           ctx.beginPath();
-          ctx.roundRect(barX, bottom - fillH, barW, fillH, barW / 2);
+          ctx.moveTo(bx2 + Math.round(2 * scale), ty);
+          ctx.lineTo(bx2 + Math.round(6 * scale), ty);
+          ctx.stroke();
+        }
+
+        // Accel fill (Green)
+        if (accPct > 0) {
+          const fh = Math.max(br * 2, Math.round((barH - 2) * (accPct / 100.0)));
+          const fy1 = Math.max(by1 + 1, by2 - fh);
+          ctx.fillStyle = '#6eeb00';
+          ctx.beginPath();
+          ctx.roundRect(bx1 + 1, fy1, barW - 2, by2 - fy1 - 1, Math.max(2, br - 1));
           ctx.fill();
         }
 
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = COLOR.muted;
-        ctx.font = font(500, 14 * scale);
-        ctx.fillText('Accel', labelX, top + px(10));
-        ctx.fillText('Brake', brakeX, top + px(10));
+        // Labels
+        const accTx = bx2 + Math.round(10 * scale);
+        const brkX = offsetX + cx1 + Math.round(96 * scale);
 
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = accel > 0 ? COLOR.text : COLOR.muted;
-        ctx.font = font(600, 22 * scale);
-        this.fillTabular(ctx, `${accel}%`, labelX, bottom - px(2));
+        ctx.fillStyle = '#d7cdc3';
+        ctx.font = `bold ${Math.round(14 * scale)}px sans-serif`;
+        ctx.fillText('ACC', accTx, by1 + Math.round(16 * scale));
+        ctx.fillText('BRK', brkX, by1 + Math.round(16 * scale));
 
-        const lampW = px(64);
-        const lampH = px(28);
-        const lampY = bottom - lampH;
-        ctx.fillStyle = braking ? COLOR.danger : COLOR.track;
+        // Accel % Text
+        const accStr = `${accPct}%`;
+        ctx.fillStyle = accPct > 0 ? '#96ff50' : '#a59b91';
+        ctx.font = `bold ${Math.round(19 * scale)}px sans-serif`;
+        ctx.fillText(accStr, accTx, by2 - Math.round(4 * scale));
+
+        // Brake Lamp Badge
+        const lampW = Math.round(64 * scale);
+        const lampH = Math.round(27 * scale);
+        const lampY1 = by2 - lampH;
+        const lampR = Math.max(4, Math.round(6 * scale));
+
+        ctx.fillStyle = brkOn ? '#381cc3' : '#1e1814';
+        ctx.strokeStyle = brkOn ? '#955aff' : '#4b4037';
+        ctx.lineWidth = Math.max(1, Math.round(1.3 * scale));
         ctx.beginPath();
-        ctx.roundRect(brakeX, lampY, lampW, lampH, lampH / 2);
+        ctx.roundRect(brkX, lampY1, lampW, lampH, lampR);
         ctx.fill();
-        ctx.fillStyle = braking ? COLOR.text : COLOR.muted;
-        ctx.font = font(600, 14 * scale);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(braking ? 'On' : 'Off', brakeX + lampW / 2, lampY + lampH / 2);
-        ctx.restore();
-      }
+        ctx.stroke();
 
-      if ('fsd' in colBoxMap) {
-        const [x] = colBoxMap.fsd;
-        const left = offsetX + x;
-        const raw = telemetry.ap_mode || 'MANUAL';
-        const active = raw === 'FSD ACTIVE' ? 'FSD' : raw;
-        const rowH = px(30);
-        const step = px(36);
-        const rowW = px(145);
-        const top = hudY + px(16);
+        // Brake Dot & State Text
+        const ldR = Math.max(2, Math.round(4 * scale));
+        const ldCx = brkX + Math.round(14 * scale);
+        const ldCy = lampY1 + lampH / 2;
 
-        ctx.save();
+        ctx.fillStyle = brkOn ? '#8c8cff' : '#5a5048';
+        ctx.beginPath();
+        ctx.arc(ldCx, ldCy, ldR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = brkOn ? '#ffffff' : '#9b9188';
+        ctx.font = `bold ${Math.round(14 * scale)}px sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        DRIVE_MODES.forEach(({ key, label, color }, index) => {
-          const y = top + index * step;
-          const on = active === key;
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          if (on) ctx.roundRect(left, y, rowW, rowH, rowH / 2);
-          else ctx.arc(left + px(14), y + rowH / 2, px(4), 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = on ? COLOR.text : COLOR.faint;
-          ctx.font = font(on ? 600 : 500, 16 * scale);
-          ctx.fillText(label, left + px(26), y + rowH / 2);
-        });
+        ctx.fillText(brkOn ? 'ON' : 'OFF', ldCx + Math.round(8 * scale), ldCy);
         ctx.restore();
       }
 
-      if (options.qr) {
-        const qrX = outW - qrPadR - qrPx;
-        const qrY = hudY + px(12);
-        drawQRCode(ctx, qrX, qrY, qrPx);
+      // 6. FSD Mode Column (우측 끝 4단계 수직 목록)
+      if ('fsd' in colBoxMap) {
+        const [cx1] = colBoxMap.fsd;
+        const fsdX = offsetX + cx1;
+        const apRaw = telemetry.ap_mode || 'MANUAL';
+        const activeKey = apRaw === 'FSD ACTIVE' ? 'FSD' : apRaw;
+
+        const modesList = [
+          {
+            label: 'MANUAL',
+            key: 'MANUAL',
+            activeTxt: '#fcf8f8',
+            activeDot: '#e1d7d7',
+            activeBg: '#30363e',
+            activeBd: '#919ba5',
+          },
+          {
+            label: 'TACC',
+            key: 'TACC',
+            activeTxt: '#5acdef',
+            activeDot: '#28b9ff',
+            activeBg: '#14304a',
+            activeBd: '#2dafef',
+          },
+          {
+            label: 'AUTOPILOT',
+            key: 'AUTOPILOT',
+            activeTxt: '#64ffa5',
+            activeDot: '#2df56e',
+            activeBg: '#164222',
+            activeBd: '#32eb73',
+          },
+          {
+            label: 'FSD',
+            key: 'FSD',
+            activeTxt: '#50eeff',
+            activeDot: '#00dcff',
+            activeBg: '#0e384e',
+            activeBd: '#00d2ff',
+          },
+        ];
+
+        const startY = hdrY;
+        const boxH = Math.round(27 * scale);
+        const stepY = Math.round(31.5 * scale);
+        const boxW = Math.round(145 * scale);
+        const boxR = Math.max(3, Math.round(6 * scale));
+
         ctx.save();
-        ctx.fillStyle = COLOR.faint;
-        ctx.font = font(500, Math.max(9, 11 * scale));
+        for (let i = 0; i < modesList.length; i++) {
+          const item = modesList[i];
+          const isAct = activeKey === item.key;
+          const by1 = startY + Math.round(i * stepY);
+
+          if (isAct) {
+            ctx.fillStyle = item.activeBg;
+            ctx.strokeStyle = item.activeBd;
+            ctx.lineWidth = Math.max(1, Math.round(1.5 * scale));
+            ctx.beginPath();
+            ctx.roundRect(fsdX, by1, boxW, boxH, boxR);
+            ctx.fill();
+            ctx.stroke();
+          }
+
+          const dR = Math.max(2, Math.round((isAct ? 4.2 : 3.2) * scale));
+          const dCx = fsdX + Math.round(12 * scale);
+          const dCy = by1 + boxH / 2;
+
+          ctx.fillStyle = isAct ? item.activeDot : '#5a5048';
+          ctx.beginPath();
+          ctx.arc(dCx, dCy, dR, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = isAct ? item.activeTxt : '#8c847a';
+          ctx.font = `bold ${Math.round(18 * scale)}px sans-serif`;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(item.label, dCx + Math.round(10 * scale), dCy);
+        }
+        ctx.restore();
+      }
+
+      // 7. Optional brand QR code (Bottom-Right of HUD).
+      if (options.qr) {
+        const qrX1 = outW - qrPadR - qrPx;
+        const qrY1 = hudY + Math.round(10 * scale);
+        drawQRCode(ctx, qrX1, qrY1, qrPx);
+
+        // Watermark text below QR code
+        ctx.save();
+        ctx.fillStyle = '#8a7c72';
+        ctx.font = `600 ${Math.max(9, Math.round(11 * scale))}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
-        ctx.fillText('CT Dashcam Studio', qrX + qrPx / 2, outH - px(10));
+        ctx.fillText('CT Dashcam Studio', qrX1 + qrPx / 2, outH - Math.round(10 * scale));
         ctx.restore();
       }
     }
 
+    // Unmovable Brand QR Code when Bottom HUD is turned off
     if (!hasBottomHud && options.qr) {
-      const qrX = outW - qrPadR - qrPx;
-      const qrY = outH - px(32) - qrPx;
-      const pad = px(10);
+      const qx1 = outW - qrPadR - qrPx;
+      const qy1 = outH - Math.round(28 * scale) - qrPx;
+
       ctx.save();
-      ctx.fillStyle = COLOR.glass;
+      // Semi-transparent dark card background over video
+      ctx.fillStyle = 'rgba(8, 11, 16, 0.75)';
       ctx.beginPath();
-      ctx.roundRect(qrX - pad, qrY - pad, qrPx + pad * 2, qrPx + pad + px(30), px(18));
+      ctx.roundRect(
+        qx1 - Math.round(6 * scale),
+        qy1 - Math.round(6 * scale),
+        qrPx + Math.round(12 * scale),
+        qrPx + Math.round(26 * scale),
+        Math.round(8 * scale),
+      );
       ctx.fill();
-      drawQRCode(ctx, qrX, qrY, qrPx);
-      ctx.fillStyle = COLOR.muted;
-      ctx.font = font(500, Math.max(9, 11 * scale));
+
+      drawQRCode(ctx, qx1, qy1, qrPx);
+
+      ctx.fillStyle = '#ded4ca';
+      ctx.font = `600 ${Math.max(9, Math.round(11 * scale))}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillText('CT Dashcam Studio', qrX + qrPx / 2, qrY + qrPx + px(18));
+      ctx.fillText('CT Dashcam Studio', qx1 + qrPx / 2, qy1 + qrPx + Math.round(15 * scale));
       ctx.restore();
     }
   }
