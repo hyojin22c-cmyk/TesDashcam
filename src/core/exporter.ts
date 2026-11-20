@@ -119,6 +119,7 @@ export class WebCodecsExporter {
     output.addVideoTrack(source, { frameRate: config.targetFps });
 
     try {
+      if (config.options.steering) await OverlayRenderer.prepareSteeringImage();
       await output.start();
       config.onProgress(0, 1, config.segments.length);
 

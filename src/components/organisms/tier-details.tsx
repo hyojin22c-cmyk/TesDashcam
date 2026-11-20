@@ -7,17 +7,19 @@ import { isDevDeployment } from '@/lib/platform';
 
 import type { TranslationKey } from '@/i18n';
 
-const TIERS: { tier: DeviceTier; name: string; key: TranslationKey }[] = [
-  { tier: 'High', name: 'High', key: 'tier_high_desc' },
-  { tier: 'Mid', name: 'Medium', key: 'tier_mid_desc' },
-  { tier: 'Low', name: 'Low', key: 'tier_low_desc' },
+const TIERS: { tier: DeviceTier; name: TranslationKey; key: TranslationKey }[] = [
+  { tier: 'High', name: 'tier_high_name', key: 'tier_high_desc' },
+  { tier: 'Mid', name: 'tier_mid_name', key: 'tier_mid_desc' },
+  { tier: 'Low', name: 'tier_low_name', key: 'tier_low_desc' },
 ];
 
 export const TierBadge = () => {
+  const { t } = useTranslation();
   const { tier } = getDevicePolicy();
+  const name = TIERS.find((item) => item.tier === tier)?.name ?? 'tier_mid_name';
   return (
     <span className="inline-flex shrink-0 items-center gap-1">
-      <Badge variant="attention">{tier} Tier</Badge>
+      <Badge variant="attention">{t('tier_badge', { level: t(name) })}</Badge>
       <Show when={isDevDeployment()}>
         <Badge>DEV</Badge>
       </Show>
@@ -26,9 +28,10 @@ export const TierBadge = () => {
 };
 
 export const TierReason = () => {
+  const { t } = useTranslation();
   return (
     <p className="text-body text-muted-foreground">
-      {getDeviceTierReason(getDevicePolicy().specs)}
+      {getDeviceTierReason(getDevicePolicy().specs, t)}
     </p>
   );
 };
@@ -53,7 +56,7 @@ export const TierDetails = () => {
                     tier === current ? 'font-semibold text-attention' : 'text-muted-foreground'
                   }
                 >
-                  {name}
+                  {t(name)}
                 </dt>
                 <dd className={tier === current ? 'text-foreground' : 'text-muted-foreground'}>
                   {t(key)}

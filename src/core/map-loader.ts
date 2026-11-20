@@ -114,21 +114,53 @@ export class OpenStreetMapTileLoader {
       }
     }
 
+    // Vehicle Top-View Red Tesla Car Marker (matching PC reference UI)
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate((heading * Math.PI) / 180);
+
+    // Car Body Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.beginPath();
-    ctx.moveTo(0, -13);
-    ctx.lineTo(10, 10);
-    ctx.lineTo(0, 4);
-    ctx.lineTo(-10, 10);
-    ctx.closePath();
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#ffffff';
-    ctx.stroke();
-    ctx.fillStyle = '#226cff';
+    ctx.roundRect(-9, -17, 18, 36, 5);
     ctx.fill();
+
+    // Red Car Body
+    ctx.fillStyle = '#d32f2f';
+    ctx.strokeStyle = '#801313';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.roundRect(-8, -16, 16, 34, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // Windshield (Front dark glass)
+    ctx.fillStyle = '#1e2430';
+    ctx.beginPath();
+    ctx.roundRect(-6, -11, 12, 7, 2);
+    ctx.fill();
+
+    // Panoramic Tinted Glass Roof
+    ctx.fillStyle = '#11141a';
+    ctx.beginPath();
+    ctx.roundRect(-5.5, -3, 11, 11, 1);
+    ctx.fill();
+
+    // Rear Windshield
+    ctx.fillStyle = '#1e2430';
+    ctx.beginPath();
+    ctx.roundRect(-5.5, 9, 11, 4, 1);
+    ctx.fill();
+
+    // Headlights (White/Ice Blue)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-7, -16, 3, 2);
+    ctx.fillRect(4, -16, 3, 2);
+
+    // Taillights (Bright Red Line)
+    ctx.fillStyle = '#ff1744';
+    ctx.fillRect(-6.5, 17, 13, 1.5);
+
     ctx.restore();
 
     ctx.restore();

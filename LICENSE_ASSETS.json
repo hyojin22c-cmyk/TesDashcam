@@ -108,6 +108,12 @@
       "sha256": "5cab125d1a08a75b80fd2498895185501d4e2683ad767a2ebb3eaeb67e12046c",
       "bytes": 257170,
       "status": "Provenance/redistribution evidence requires owner confirmation"
+    },
+    {
+      "path": "public/models/steering_hud.png",
+      "sha256": "595bfc1d7ef7f05a3214f9f271c0ed610a98ba4e9a76162a2ba9b71d86a46d7f",
+      "bytes": 204477,
+      "status": "Provenance/redistribution evidence requires owner confirmation"
     }
   ]
 }

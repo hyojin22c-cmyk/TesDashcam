@@ -91,6 +91,18 @@ const adjustPixels = (
 };
 
 export class OverlayRenderer {
+  private static steeringImage = typeof Image === 'undefined' ? null : new Image();
+
+  static {
+    if (this.steeringImage) {
+      this.steeringImage.src = `${import.meta.env.BASE_URL}models/steering_hud.png`;
+    }
+  }
+
+  static async prepareSteeringImage() {
+    await this.steeringImage?.decode().catch(() => {});
+  }
+
   static drawSubSlotCover(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -276,6 +288,12 @@ export class OverlayRenderer {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate((angleDeg * Math.PI) / 180);
+
+    if (this.steeringImage?.naturalWidth) {
+      ctx.drawImage(this.steeringImage, -size / 2, -size / 2, size, size);
+      ctx.restore();
+      return;
+    }
 
     ctx.beginPath();
     ctx.arc(0, 0, size / 2, 0, Math.PI * 2);

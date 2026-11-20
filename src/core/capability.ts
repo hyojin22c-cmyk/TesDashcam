@@ -1,4 +1,4 @@
-import { i18n } from '@/i18n';
+import type { TFunction } from 'i18next';
 
 export type DeviceTier = 'High' | 'Mid' | 'Low';
 
@@ -25,14 +25,14 @@ const classifyTier = ({
   return 'Mid';
 };
 
-export const getDeviceTierReason = (specs: DeviceSpecs): string => {
+export const getDeviceTierReason = (specs: DeviceSpecs, t: TFunction): string => {
   const { concurrency, memory, hasWebGPU } = specs;
   const tier = classifyTier(specs);
   if (tier === 'High') {
-    const accel = hasWebGPU ? i18n.t('tier_accel_webgpu') : i18n.t('tier_accel_multithread');
-    return i18n.t('tier_reason_high', { concurrency, memory, accel });
+    const accel = hasWebGPU ? t('tier_accel_webgpu') : t('tier_accel_multithread');
+    return t('tier_reason_high', { concurrency, memory, accel });
   }
-  return i18n.t(tier === 'Low' ? 'tier_reason_low' : 'tier_reason_mid', { concurrency, memory });
+  return t(tier === 'Low' ? 'tier_reason_low' : 'tier_reason_mid', { concurrency, memory });
 };
 
 export const detectDeviceCapabilities = (): CapabilityPolicy => {

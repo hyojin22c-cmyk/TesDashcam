@@ -36,7 +36,7 @@ LICENSE_ASSETS.json lists every tracked distributable PNG/ICO/SVG asset and SHA-
 The following are **unresolved before claiming full public-release clearance**:
 
 1. Current `ct-*-v3` icons were supplied by the owner. A supplied file is not documentary proof of ownership/licensing. Their Portal turret/companion-cube inspiration raises potential Valve character/art/trademark questions. No permission record, original editable artwork or asset-specific grant is present. Older v2 and legacy icons remain in public/ and are copied to Pages too; they also need provenance review. Do not silently remove or redraw them in this scoped task.
-2. The former `public/models/steering_hud.png` has been removed. The on-video steering wheel is now drawn from simple vector shapes in `src/core/renderer.ts`.
+2. `public/models/steering_hud.png` was restored byte-for-byte from the existing project. Its creator and redistribution license remain unverified.
 3. The former `intro/scene.svg` illustration has been removed together with the introduction pages.
 4. Core Python ports and QR table: confirm upstream commit lineage and any external copied code/required notices. No automated similarity search can prove absence of infringement.
 5. Test fixtures: test/fixtures/README.md records generated FFmpeg test patterns, not user footage. They are outside public/ and not shipped by Pages. FFmpeg executable itself is not distributed by this web build. Any source archive that adds tool binaries would need a new audit.
