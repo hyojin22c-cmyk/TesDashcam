@@ -1,5 +1,5 @@
 import { Show } from '@jellybrick/react-solid-flow';
-import { FolderOpen } from 'lucide-react';
+import { Files, FolderOpen } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -47,15 +47,20 @@ export const FolderPicker = ({ compact = false }: { compact?: boolean }) => {
   );
 };
 
-export const FilesPicker = () => {
+export const FilesPicker = ({ compact = false }: { compact?: boolean }) => {
   const { t } = useTranslation();
   return (
     <FilePickButton
-      variant="solid"
+      variant={compact ? 'quiet' : 'solid'}
+      size={compact ? 'icon' : undefined}
       label={t('btn_open_files')}
       onActivate={awaitPickedFiles}
       onCancel={cancelPickedFiles}
       onPick={onPick}
-    />
+    >
+      <Show when={compact}>
+        <Files />
+      </Show>
+    </FilePickButton>
   );
 };

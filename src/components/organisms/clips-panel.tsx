@@ -60,6 +60,7 @@ const ClipsSheet = () => {
             <SheetTitle className="px-3 py-2 text-head1">{t('drawer_clips')}</SheetTitle>
             <div className="flex items-center pr-1">
               <ClipSearchToggle />
+              <FilesPicker compact />
               <Button
                 variant="quiet"
                 size="icon"
@@ -91,6 +92,7 @@ const ClipsPanelBody = () => {
           <Show when={hasClips}>
             <ClipSearchToggle />
             <FolderPicker compact />
+            <FilesPicker compact />
             <Show when={portrait}>
               <Button variant="quiet" size="icon" aria-label={t('drag_expand')} onClick={expand}>
                 <ChevronUp />
