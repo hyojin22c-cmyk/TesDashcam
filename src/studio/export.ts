@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { getClipFile } from '@/core/clip-scanner';
 import { RESOLUTIONS, type ResolutionName } from '@/core/constants';
 import { i18n } from '@/i18n';
+import { isExportCodecInterruption, waitForVisibleDocument } from '@/lib/export-visibility';
 import { isAndroid, isIOSOrAndroid, isMobileDevice } from '@/lib/platform';
 
 import {
@@ -21,6 +22,7 @@ import type { WebCodecsExporter } from '@/core/exporter';
 import type { TFunction } from 'i18next';
 
 let exporter: WebCodecsExporter | null = null;
+let exportController: AbortController | null = null;
 
 const loadExporter = async () => {
   const { WebCodecsExporter } = await import('@/core/exporter');
@@ -89,7 +91,7 @@ export const canEncodeResolution = async (resolution: ResolutionName, frameRate:
 
 export const cancelExport = () => {
   if (!getStudio().exportProgress) return;
-  exporter?.cancel();
+  exportController?.abort(new Error(i18n.t('error_export_cancelled')));
   setStudio((state) => ({
     exportProgress: state.exportProgress && { ...state.exportProgress, cancelling: true },
   }));
@@ -139,6 +141,9 @@ export const startExport = async ({ confirmed = false } = {}) => {
   }
 
   const speed = options.exportSpeed ?? 1;
+  const controller = new AbortController();
+  const { signal } = controller;
+  exportController = controller;
   pauseAllVideos(true);
   releasePreviewDecoders();
   setStudio({
@@ -155,33 +160,72 @@ export const startExport = async ({ confirmed = false } = {}) => {
 
   const preventUnload = (event: BeforeUnloadEvent) => event.preventDefault();
   window.addEventListener('beforeunload', preventUnload);
-  const wakeLock = await requestWakeLock();
+  let wakeLock: WakeLockSentinel | undefined;
+  let wakeLockPending = false;
+  let wasHidden = document.hidden;
+  const refreshWakeLock = () => {
+    if (document.hidden || signal.aborted || wakeLockPending || (wakeLock && !wakeLock.released)) {
+      return;
+    }
+    wakeLockPending = true;
+    requestWakeLock()
+      .then((lock) => {
+        if (exportController !== controller || signal.aborted) {
+          lock?.release().catch(() => {});
+        } else {
+          wakeLock = lock;
+        }
+      })
+      .finally(() => {
+        wakeLockPending = false;
+      })
+      .catch(reportError);
+  };
+  const onVisibilityChange = () => {
+    if (document.hidden) wasHidden = true;
+    else refreshWakeLock();
+  };
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  refreshWakeLock();
 
   try {
-    const blob = await (
-      await loadExporter()
-    ).exportMultiClip({
-      segments,
-      getClipDecoder: async (clip) => getClipDecoder(clip, await getClipFile(clip, 'front')),
-      sourceFps: SOURCE_FPS,
-      targetFps: exportFps,
-      exportSpeed: speed,
-      resolutionName: resolution,
-      options: getStudio().options,
-      onProgress: (pct, segment, totalSegments) =>
-        setStudio((current) => ({
-          exportProgress: current.exportProgress && {
-            ...current.exportProgress,
-            pct,
-            segment,
-            totalSegments,
-          },
-          exportStatus: {
-            key: 'status_encoding',
-            params: { 0: pct, 1: segment, 2: totalSegments },
-          },
-        })),
-    });
+    const runExport = async () =>
+      (await loadExporter()).exportMultiClip({
+        segments,
+        getClipDecoder: async (clip) => getClipDecoder(clip, await getClipFile(clip, 'front')),
+        sourceFps: SOURCE_FPS,
+        targetFps: exportFps,
+        exportSpeed: speed,
+        resolutionName: resolution,
+        options,
+        signal,
+        onProgress: (pct, segment, totalSegments) =>
+          setStudio((current) => ({
+            exportProgress: current.exportProgress && {
+              ...current.exportProgress,
+              pct,
+              segment,
+              totalSegments,
+            },
+            exportStatus: {
+              key: 'status_encoding',
+              params: { 0: pct, 1: segment, 2: totalSegments },
+            },
+          })),
+      });
+
+    let blob: Blob;
+    try {
+      blob = await runExport();
+    } catch (error) {
+      signal.throwIfAborted();
+      if ((!wasHidden && !document.hidden) || !isExportCodecInterruption(error)) throw error;
+      // An interrupted codec may leave the MP4 incomplete. Retry with a fresh output.
+      await waitForVisibleDocument(signal);
+      blob = await runExport();
+    }
+    await waitForVisibleDocument(signal);
+    signal.throwIfAborted();
     const fileName =
       segments.length > 1
         ? `TeslaCam_${first.clip.timestampRaw}_to_${last.clip.timestampRaw}_export.mp4`
@@ -198,8 +242,10 @@ export const startExport = async ({ confirmed = false } = {}) => {
       duration: 15_000,
     });
   } finally {
+    exportController = null;
     setStudio({ exportProgress: null });
     window.removeEventListener('beforeunload', preventUnload);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
     wakeLock?.release().catch(() => {});
     if (getStudio().activeClip?.id === activeClip.id) {
       await selectClip(activeClip);

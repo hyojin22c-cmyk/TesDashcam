@@ -15,6 +15,7 @@ import {
 } from 'mediabunny';
 
 import { i18n } from '@/i18n';
+import { waitForVisibleDocument } from '@/lib/export-visibility';
 import { isAndroid, isIOSOrAndroid } from '@/lib/platform';
 
 import { type ClipItem, ensureClipFiles } from './clip-scanner';
@@ -38,6 +39,7 @@ export interface MultiClipExportConfig {
   exportSpeed: number;
   resolutionName: keyof typeof RESOLUTIONS;
   options: RenderOptions;
+  signal: AbortSignal;
   onProgress: (percent: number, currentSegmentIdx: number, totalSegments: number) => void;
 }
 
@@ -64,8 +66,6 @@ const pickEncodingConfig = async (
 };
 
 export class WebCodecsExporter {
-  private isCancelled = false;
-
   private getActiveCamKeys(options: RenderOptions): CameraKey[] {
     if (options.layout === 'single') {
       return [options.single_cam || 'front'];
@@ -77,12 +77,9 @@ export class WebCodecsExporter {
     return keys;
   }
 
-  cancel(): void {
-    this.isCancelled = true;
-  }
-
   async exportMultiClip(config: MultiClipExportConfig): Promise<Blob> {
-    this.isCancelled = false;
+    const { signal } = config;
+    await waitForVisibleDocument(signal);
 
     const android = isAndroid();
     const isMobile =
@@ -120,6 +117,7 @@ export class WebCodecsExporter {
 
     try {
       if (config.options.steering) await OverlayRenderer.prepareSteeringImage();
+      await waitForVisibleDocument(signal);
       await output.start();
       config.onProgress(0, 1, config.segments.length);
 
@@ -132,7 +130,7 @@ export class WebCodecsExporter {
       let outputFrameCount = 0;
 
       for (let segIdx = 0; segIdx < config.segments.length; segIdx++) {
-        if (this.isCancelled) break;
+        signal.throwIfAborted();
         let segment = config.segments[segIdx];
 
         await ensureClipFiles(segment.clip);
@@ -179,7 +177,8 @@ export class WebCodecsExporter {
           }));
 
           for (const sourceSec of sourceTimes) {
-            if (this.isCancelled) break;
+            if (document.hidden) await waitForVisibleDocument(signal);
+            signal.throwIfAborted();
             const results = await Promise.all(streams.map(({ canvases }) => canvases.next()));
             const frames: Partial<Record<CameraKey, CanvasImageSource>> = {};
             streams.forEach(({ key }, i) => {
@@ -203,6 +202,8 @@ export class WebCodecsExporter {
               config.options,
             );
 
+            if (document.hidden) await waitForVisibleDocument(signal);
+            signal.throwIfAborted();
             await source.add(outputFrameCount / config.targetFps, 1 / config.targetFps);
             outputFrameCount++;
 
@@ -214,9 +215,8 @@ export class WebCodecsExporter {
         }
       }
 
-      if (this.isCancelled) {
-        throw new Error(i18n.t('error_export_cancelled'));
-      }
+      await waitForVisibleDocument(signal);
+      signal.throwIfAborted();
 
       if (outputFrameCount === 0) {
         throw new Error(i18n.t('error_no_frames'));
@@ -232,7 +232,9 @@ export class WebCodecsExporter {
       return new Blob([buffer], { type: 'video/mp4' });
     } finally {
       if (output.state === 'pending' || output.state === 'started') {
-        await output.cancel();
+        await output.cancel().catch((error: unknown) => {
+          console.warn('[Export] Output cleanup failed:', error);
+        });
       }
     }
   }
