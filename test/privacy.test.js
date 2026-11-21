@@ -216,9 +216,9 @@ describe('Legal documents and distribution', () => {
       '3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986',
     );
     expect(JSON.parse(readFileSync('package.json', 'utf8')).license).toBe('GPL-3.0-only');
-    expect(readFileSync('THIRD_PARTY_NOTICES.md', 'utf8')).toContain('Mediabunny 1.66.2');
-    expect(readFileSync('licenses/mediabunny-MPL-2.0.txt')).toEqual(
-      readFileSync('node_modules/mediabunny/LICENSE'),
+    expect(readFileSync('THIRD_PARTY_NOTICES.md', 'utf8')).toContain('mp4-muxer 5.2.2');
+    expect(readFileSync('licenses/mp4-muxer-MIT.txt')).toEqual(
+      readFileSync('node_modules/mp4-muxer/LICENSE'),
     );
   });
   it('renders the Markdown used by the legal documents without raw HTML', () => {

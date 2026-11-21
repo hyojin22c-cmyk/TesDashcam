@@ -1,15 +1,14 @@
 // Ported & adapted from core/exporter.py (ExportWorker) using WebCodecs + mp4-muxer
-import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
+import * as Mp4Muxer from 'mp4-muxer';
 
 import { i18n } from '@/i18n';
-import { waitForVisibleDocument } from '@/lib/export-visibility';
-import { isAndroid as detectAndroid, isIOS as detectIOS } from '@/lib/platform';
 
 import { ensureClipFiles, type ClipItem } from './clip-scanner';
 import { clampSegmentToMedia } from './clip-timing';
 import { RESOLUTIONS, type CameraKey } from './constants';
 import { OverlayRenderer, type RenderOptions } from './renderer';
-import { DEFAULT_TELEMETRY, type RealTeslaSEIDecoder } from './sei-decoder';
+
+import type { RealTeslaSEIDecoder, TelemetryData } from './sei-decoder';
 
 // Background-safe event loop yield helper that prevents Chromium 1000ms timer throttling in hidden tabs
 const fastYield = (): Promise<void> => {
@@ -24,48 +23,6 @@ const fastYield = (): Promise<void> => {
       resolve();
     };
     ch.port2.postMessage(null);
-    ch.port2.close();
-  });
-};
-
-const flushVideoEncoder = (encoder: VideoEncoder, signal: AbortSignal): Promise<void> => {
-  signal.throwIfAborted();
-  return new Promise((resolve, reject) => {
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const cleanup = () => {
-      clearTimeout(timeout);
-      signal.removeEventListener('abort', onAbort);
-      document.removeEventListener('visibilitychange', updateTimeout);
-      encoder.removeEventListener('dequeue', updateTimeout);
-    };
-    const onAbort = () => {
-      cleanup();
-      reject(signal.reason);
-    };
-    const updateTimeout = () => {
-      clearTimeout(timeout);
-      if (document.hidden) return;
-      timeout = setTimeout(() => {
-        if (document.hidden) return;
-        cleanup();
-        reject(new DOMException(i18n.t('error_export_finalize_timeout'), 'OperationError'));
-      }, 15_000);
-    };
-    signal.addEventListener('abort', onAbort);
-    document.addEventListener('visibilitychange', updateTimeout);
-    encoder.addEventListener('dequeue', updateTimeout);
-    updateTimeout();
-    // Safari can leave flush pending when the hardware encoder is suspended.
-    encoder.flush().then(
-      () => {
-        cleanup();
-        resolve();
-      },
-      (error: unknown) => {
-        cleanup();
-        reject(error);
-      },
-    );
   });
 };
 
@@ -89,6 +46,12 @@ export interface MultiClipExportConfig {
 }
 
 export class WebCodecsExporter {
+  private signal?: AbortSignal;
+
+  private get isCancelled() {
+    return this.signal?.aborted ?? false;
+  }
+
   private getActiveCamKeys(options: RenderOptions): CameraKey[] {
     if (options.layout === 'single') {
       return [options.single_cam || 'front'];
@@ -108,7 +71,7 @@ export class WebCodecsExporter {
         return;
       }
       let settled = false;
-      let timer: ReturnType<typeof setTimeout> | undefined;
+      let timer: ReturnType<typeof setTimeout> | null = null;
       const finish = () => {
         if (settled) return;
         settled = true;
@@ -138,7 +101,7 @@ export class WebCodecsExporter {
   private async warmupSegmentVideos(
     segVideos: Partial<Record<CameraKey, HTMLVideoElement>>,
     startSec: number,
-    signal: AbortSignal,
+    _isIOS: boolean,
   ): Promise<void> {
     const videos = Object.values(segVideos).filter((v): v is HTMLVideoElement => Boolean(v));
     if (videos.length === 0) return;
@@ -216,7 +179,7 @@ export class WebCodecsExporter {
     ): Promise<void> => {
       return new Promise<void>((resolve) => {
         let settled = false;
-        let timer: ReturnType<typeof setTimeout> | undefined;
+        let timer: ReturnType<typeof setTimeout> | null = null;
         const finish = () => {
           if (settled) return;
           settled = true;
@@ -309,7 +272,11 @@ export class WebCodecsExporter {
           // Step C: Verify that ctx.drawImage(v) actually paints decoded non-black pixels before starting export
           const deadline = performance.now() + 1800;
           let attempt = 0;
-          while (!isVideoPaintingValidFrame(v) && performance.now() < deadline && !signal.aborted) {
+          while (
+            !isVideoPaintingValidFrame(v) &&
+            performance.now() < deadline &&
+            !this.isCancelled
+          ) {
             attempt++;
             if (attempt % 2 === 1) {
               // Nudge currentTime by 1 frame (+0.035s) and back to force AVFoundation frame decode
@@ -358,7 +325,6 @@ export class WebCodecsExporter {
     getLastOutputTimestampMicros: () => number,
     setLastOutputTimestampMicros: (t: number) => void,
   ): Promise<void> {
-    const { signal } = config;
     const activeVideos = videoKeys
       .map((k) => segVideos[k])
       .filter((v): v is HTMLVideoElement => Boolean(v));
@@ -376,8 +342,6 @@ export class WebCodecsExporter {
       v.playbackRate = baseRate;
     }
 
-    await waitForVisibleDocument(signal);
-
     // 3. 모든 활성 비디오 연속 재생 시작 (매 프레임 pause 절대 하지 않고 연속 스트리밍 유지)
     await Promise.all(activeVideos.map((v) => v.play().catch(() => {})));
 
@@ -387,250 +351,229 @@ export class WebCodecsExporter {
     let lastCapturedMediaTime = -1;
     let lastFrameWallTime = performance.now();
 
-    let needsResume = false;
-    let watchFramesAfterResume = false;
-    let pollForFrames = false;
-    let releaseFrameWait: (() => void) | undefined;
-    const onVisibilityChange = () => {
-      lastFrameWallTime = performance.now();
-      if (document.hidden) {
-        needsResume = true;
-        for (const video of activeVideos) video.pause();
-        releaseFrameWait?.();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    try {
-      while (!signal.aborted) {
-        if (document.hidden) await waitForVisibleDocument(signal);
-        signal.throwIfAborted();
-        // The browser may also pause only a secondary camera on an app switch.
-        if (needsResume) {
-          needsResume = false;
-          watchFramesAfterResume = true;
-          pollForFrames = false;
-          for (const video of activeVideos) {
-            video.playbackRate = baseRate;
-            video.play().catch(() => {});
-          }
-        } else if (masterVideo.paused && videoEncoder.encodeQueueSize <= 4) {
-          for (const video of activeVideos) {
-            if (video.paused) video.play().catch(() => {});
-          }
+    while (!this.isCancelled) {
+      // 브라우저 백그라운드 정책 등으로 일시정지되었을 경우 안전 재개 (백프레셔 상태가 아닐 때)
+      if (masterVideo.paused && videoEncoder.encodeQueueSize <= 4) {
+        for (const v of activeVideos) {
+          if (v.paused) v.play().catch(() => {});
         }
+      }
 
-        const frameMeta = await new Promise<{ mediaTime: number }>((resolve) => {
-          let settled = false;
-          let frameCallbackId: number | undefined;
-          let poll: ReturnType<typeof setInterval> | undefined;
-          const finish = (mediaTime: number) => {
+      // requestVideoFrameCallback을 통해 GPU 하드웨어 디코더가 새 프레임을 렌더할 때까지 대기
+      const frameMeta = await new Promise<{ mediaTime: number }>((resolve) => {
+        let settled = false;
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+        const onFrame = (_now: number, metadata?: VideoFrameCallbackMetadata) => {
+          if (settled) return;
+          settled = true;
+          if (timeoutId) clearTimeout(timeoutId);
+          resolve({ mediaTime: metadata?.mediaTime ?? masterVideo.currentTime });
+        };
+
+        timeoutId = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          resolve({ mediaTime: masterVideo.currentTime });
+        }, 400);
+
+        if (typeof masterVideo.requestVideoFrameCallback === 'function') {
+          masterVideo.requestVideoFrameCallback(onFrame);
+        } else {
+          setTimeout(() => {
             if (settled) return;
             settled = true;
-            clearTimeout(timeout);
-            clearInterval(poll);
-            if (frameCallbackId !== undefined)
-              masterVideo.cancelVideoFrameCallback(frameCallbackId);
-            releaseFrameWait = undefined;
-            resolve({ mediaTime });
-          };
-          const readClock = () => finish(masterVideo.currentTime);
-          const hasFrameCallback = typeof masterVideo.requestVideoFrameCallback === 'function';
-          const timeout = setTimeout(readClock, hasFrameCallback ? 400 : 35);
-          releaseFrameWait = readClock;
-          if (!hasFrameCallback) return;
+            resolve({ mediaTime: masterVideo.currentTime });
+          }, 35);
+        }
+      });
 
-          frameCallbackId = masterVideo.requestVideoFrameCallback((_, metadata) => {
-            if (settled) return;
-            frameCallbackId = undefined;
-            pollForFrames = false;
-            finish(metadata.mediaTime);
-          });
+      if (this.isCancelled) break;
 
-          // After foregrounding, the video can decode frames before the compositor
-          // starts delivering callbacks again. Use its frame counter during that gap.
-          if (watchFramesAfterResume && typeof masterVideo.getVideoPlaybackQuality === 'function') {
-            const presentedFrames = () => {
-              const { totalVideoFrames, droppedVideoFrames } =
-                masterVideo.getVideoPlaybackQuality();
-              return totalVideoFrames - droppedVideoFrames;
-            };
-            const previous = presentedFrames();
-            const startedAt = performance.now();
-            poll = setInterval(() => {
-              if (!pollForFrames && performance.now() - startedAt < 100) return;
-              if (masterVideo.readyState < 2 || presentedFrames() <= previous) return;
-              pollForFrames = true;
-              readClock();
-            }, 20);
+      const mediaTime = frameMeta.mediaTime;
+
+      // 영상 종료 조건 확인: 비디오가 끝났고 더 이상 새 프레임이 없으면 종료
+      if (masterVideo.ended && mediaTime <= lastCapturedMediaTime) {
+        break;
+      }
+      if (mediaTime >= segment.endSec + 0.1) {
+        break;
+      }
+
+      // 직전 캡처 시간과 동일하면 새 비디오 프레임이 디코딩될 때까지 대기
+      if (mediaTime <= lastCapturedMediaTime) {
+        if (performance.now() - lastFrameWallTime > 5000) {
+          console.warn('[Android Exporter] Video stalled for > 5s, ending segment');
+          break;
+        }
+        continue;
+      }
+      lastFrameWallTime = performance.now();
+
+      // 세그먼트 시작점 이전 프레임 또는 디코딩 미완료 프레임 무시 (블랙스크린 방지)
+      if (
+        mediaTime < segment.startSec - 0.03 ||
+        masterVideo.readyState < 2 ||
+        masterVideo.videoWidth === 0
+      ) {
+        continue;
+      }
+
+      // 4. 프레임 캡처 여부 판별:
+      // - 1배속: 마스터 비디오에서 새 프레임이 올라올 때마다(> lastCapturedMediaTime + 0.01) 모두 캡처하여 풀다운 저더 0%
+      // - 배속: nextTargetSourceSec 간격으로 건너뛰며 캡처
+      const shouldCapture = isOneX
+        ? mediaTime > lastCapturedMediaTime + 0.01
+        : mediaTime >= nextTargetSourceSec - 0.005;
+
+      if (shouldCapture) {
+        lastCapturedMediaTime = mediaTime;
+        if (!isOneX) {
+          nextTargetSourceSec += stepSec;
+        }
+
+        // 5. 보조 카메라 시크 금지 -> playbackRate 비례 제어 (Soft Sync)
+        for (const v of activeVideos) {
+          if (v !== masterVideo) {
+            const diff = masterVideo.currentTime - v.currentTime;
+            if (Math.abs(diff) > 0.5) {
+              // 0.5초 이상 완전히 벌어졌을 때만 예외적으로 시크
+              v.currentTime = masterVideo.currentTime;
+            } else {
+              // diff > 0이면 보조 카메라가 느리므로 가속, diff < 0이면 감속
+              const adjustedRate = Math.max(0.2, Math.min(1.0, baseRate + diff * 1.5));
+              v.playbackRate = adjustedRate;
+            }
           }
+        }
+
+        // 6. Canvas 렌더링
+        const currentFrameIdx = Math.round(mediaTime * config.sourceFps);
+        const telemetryFrameIdx = decoder
+          ? decoder.getFrameIndexAtTime(mediaTime, config.sourceFps)
+          : currentFrameIdx;
+        const telemetry: TelemetryData = decoder
+          ? decoder.getFrameTelemetry(telemetryFrameIdx)
+          : {
+              speed_kmh: 0,
+              steering_deg: 0,
+              accel_pct: 0,
+              brake_applied: false,
+              brake_pct: 0,
+              ap_mode: 'MANUAL',
+              left_blinker: false,
+              right_blinker: false,
+              lat: 0,
+              lon: 0,
+              heading: 0,
+            };
+
+        const timestampText = segment.baseTimeStr;
+
+        OverlayRenderer.render(
+          exportCanvas,
+          segVideos,
+          telemetry,
+          timestampText,
+          mediaTime,
+          currentFrameIdx,
+          config.sourceFps,
+          config.options,
+        );
+
+        // 7. 출력 타임스탬프 계산 및 VideoEncoder 인코딩
+        const count = getOutputFrameCount();
+        let timestampMicros: number;
+        if (isOneX) {
+          const relSec = Math.max(0, mediaTime - segment.startSec);
+          timestampMicros = Math.round((cumulativeCompletedSec + relSec) * 1_000_000);
+        } else {
+          timestampMicros = Math.round((count * 1_000_000) / config.targetFps);
+        }
+        if (count === 0 && cumulativeCompletedSec === 0) {
+          timestampMicros = 0;
+        }
+
+        const prevTimestamp = getLastOutputTimestampMicros();
+        if (timestampMicros <= prevTimestamp) {
+          timestampMicros = prevTimestamp + 1000;
+        }
+        setLastOutputTimestampMicros(timestampMicros);
+
+        const durationMicros = Math.round(1_000_000 / config.targetFps);
+        const keyIntervalFrames = Math.max(1, Math.round(config.targetFps * 4));
+        const isKeyFrame = count === 0 || count % keyIntervalFrames === 0;
+
+        const frame = new VideoFrame(exportCanvas, {
+          timestamp: timestampMicros,
+          duration: durationMicros,
         });
 
-        if (signal.aborted) break;
-        if (document.hidden) continue;
+        videoEncoder.encode(frame, { keyFrame: isKeyFrame });
+        frame.close();
 
-        const mediaTime = frameMeta.mediaTime;
+        onFrameEncoded();
 
-        // 영상 종료 조건 확인: 비디오가 끝났고 더 이상 새 프레임이 없으면 종료
-        if (masterVideo.ended && mediaTime <= lastCapturedMediaTime) {
-          break;
-        }
-        if (mediaTime >= segment.endSec + 0.1) {
-          break;
-        }
+        // 8. 진행도(Progress) 계산: 실제 처리된 원본 영상 시간 기반으로 부드럽게 0% ~ 99% 증가
+        const segDuration = Math.max(0.01, segment.endSec - segment.startSec);
+        const segElapsed = Math.max(0, Math.min(segDuration, mediaTime - segment.startSec));
+        const overallElapsedSec = cumulativeCompletedSec + segElapsed;
+        const progressPct = Math.min(99, Math.round((overallElapsedSec / totalSourceSec) * 100));
+        config.onProgress(progressPct, segIdx + 1, config.segments.length);
 
-        // 직전 캡처 시간과 동일하면 새 비디오 프레임이 디코딩될 때까지 대기
-        if (mediaTime <= lastCapturedMediaTime) {
-          if (!document.hidden && performance.now() - lastFrameWallTime > 5000) {
-            throw new DOMException('The source video stopped producing frames.', 'OperationError');
-          }
-          continue;
-        }
-        lastFrameWallTime = performance.now();
-
-        // 세그먼트 시작점 이전 프레임 또는 디코딩 미완료 프레임 무시 (블랙스크린 방지)
-        if (
-          mediaTime < segment.startSec - 0.03 ||
-          masterVideo.readyState < 2 ||
-          masterVideo.videoWidth === 0
-        ) {
-          continue;
-        }
-
-        // 4. 프레임 캡처 여부 판별:
-        // - 1배속: 마스터 비디오에서 새 프레임이 올라올 때마다(> lastCapturedMediaTime + 0.01) 모두 캡처하여 풀다운 저더 0%
-        // - 배속: nextTargetSourceSec 간격으로 건너뛰며 캡처
-        const shouldCapture = isOneX
-          ? mediaTime > lastCapturedMediaTime + 0.01
-          : mediaTime >= nextTargetSourceSec - 0.005;
-
-        if (shouldCapture) {
-          lastCapturedMediaTime = mediaTime;
-          if (!isOneX) {
-            nextTargetSourceSec += stepSec;
-          }
-
-          // 5. 보조 카메라 시크 금지 -> playbackRate 비례 제어 (Soft Sync)
+        // 9. 조건부 백프레셔: 하드웨어 인코더 큐가 4 초과일 때만 일시적으로 pause 후 큐가 1 이하로 빠지면 재생 재개
+        if (videoEncoder.encodeQueueSize > 4 && !this.isCancelled) {
           for (const v of activeVideos) {
-            if (v !== masterVideo) {
-              const diff = masterVideo.currentTime - v.currentTime;
-              if (Math.abs(diff) > 0.5) {
-                // 0.5초 이상 완전히 벌어졌을 때만 예외적으로 시크
-                v.currentTime = masterVideo.currentTime;
-              } else {
-                // diff > 0이면 보조 카메라가 느리므로 가속, diff < 0이면 감속
-                const adjustedRate = Math.max(0.2, Math.min(1.0, baseRate + diff * 1.5));
-                v.playbackRate = adjustedRate;
-              }
+            if (!v.paused) {
+              try {
+                v.pause();
+              } catch {}
             }
           }
-
-          // 6. Canvas 렌더링
-          const currentFrameIdx = Math.round(mediaTime * config.sourceFps);
-          const telemetryFrameIdx = decoder
-            ? decoder.getFrameIndexAtTime(mediaTime, config.sourceFps)
-            : currentFrameIdx;
-          const telemetry = decoder
-            ? decoder.getFrameTelemetry(telemetryFrameIdx)
-            : DEFAULT_TELEMETRY;
-
-          const timestampText = segment.baseTimeStr;
-
-          OverlayRenderer.render(
-            exportCanvas,
-            segVideos,
-            telemetry,
-            timestampText,
-            mediaTime,
-            currentFrameIdx,
-            config.sourceFps,
-            config.options,
-          );
-
-          // 7. 출력 타임스탬프 계산 및 VideoEncoder 인코딩
-          const count = getOutputFrameCount();
-          let timestampMicros: number;
-          if (isOneX) {
-            const relSec = Math.max(0, mediaTime - segment.startSec);
-            timestampMicros = Math.round((cumulativeCompletedSec + relSec) * 1_000_000);
-          } else {
-            timestampMicros = Math.round((count * 1_000_000) / config.targetFps);
+          while (videoEncoder.encodeQueueSize > 1 && !this.isCancelled) {
+            await new Promise((r) => setTimeout(r, 10));
           }
-          if (count === 0 && cumulativeCompletedSec === 0) {
-            timestampMicros = 0;
-          }
-
-          const prevTimestamp = getLastOutputTimestampMicros();
-          if (timestampMicros <= prevTimestamp) {
-            timestampMicros = prevTimestamp + 1000;
-          }
-          setLastOutputTimestampMicros(timestampMicros);
-
-          const durationMicros = Math.round(1_000_000 / config.targetFps);
-          const keyIntervalFrames = Math.max(1, Math.round(config.targetFps * 4));
-          const isKeyFrame = count === 0 || count % keyIntervalFrames === 0;
-
-          const frame = new VideoFrame(exportCanvas, {
-            timestamp: timestampMicros,
-            duration: durationMicros,
-          });
-
-          videoEncoder.encode(frame, { keyFrame: isKeyFrame });
-          frame.close();
-
-          onFrameEncoded();
-
-          // 8. 진행도(Progress) 계산: 실제 처리된 원본 영상 시간 기반으로 부드럽게 0% ~ 99% 증가
-          const segDuration = Math.max(0.01, segment.endSec - segment.startSec);
-          const segElapsed = Math.max(0, Math.min(segDuration, mediaTime - segment.startSec));
-          const overallElapsedSec = cumulativeCompletedSec + segElapsed;
-          const progressPct = Math.min(99, Math.round((overallElapsedSec / totalSourceSec) * 100));
-          config.onProgress(progressPct, segIdx + 1, config.segments.length);
-
-          // 9. 조건부 백프레셔: 하드웨어 인코더 큐가 4 초과일 때만 일시적으로 pause 후 큐가 1 이하로 빠지면 재생 재개
-          if (videoEncoder.encodeQueueSize > 4 && !signal.aborted) {
+          if (!this.isCancelled) {
             for (const v of activeVideos) {
-              if (!v.paused) {
-                try {
-                  v.pause();
-                } catch {}
-              }
-            }
-            while (videoEncoder.encodeQueueSize > 1 && !signal.aborted) {
-              await new Promise((r) => setTimeout(r, 10));
-            }
-            if (!signal.aborted && !document.hidden) {
-              for (const v of activeVideos) {
-                v.play().catch(() => {});
-              }
+              v.play().catch(() => {});
             }
           }
-        }
-
-        if (mediaTime >= segment.endSec || masterVideo.ended) {
-          break;
         }
       }
 
-      // 세그먼트 종료 시 모든 비디오 정지 및 배속 원복
-    } finally {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (mediaTime >= segment.endSec || masterVideo.ended) {
+        break;
+      }
+    }
+
+    // 세그먼트 종료 시 모든 비디오 정지 및 배속 원복
+    for (const v of activeVideos) {
+      try {
+        v.pause();
+        v.playbackRate = 1.0;
+      } catch {}
     }
   }
 
   async exportMultiClip(config: MultiClipExportConfig): Promise<Blob> {
-    const { signal } = config;
-    await waitForVisibleDocument(signal);
-    if (config.options.steering) await OverlayRenderer.prepareSteeringImage();
+    this.signal = config.signal;
+    config.signal.throwIfAborted();
 
     // Platform detection: Android (needs Samsung MediaCodec B-frame & buffer workarounds) vs iOS (native VideoToolbox)
-    const isAndroid = detectAndroid();
+    const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+    const isIOS =
+      typeof navigator !== 'undefined' &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
     const isMobile =
       isAndroid ||
-      detectIOS() ||
-      window.matchMedia(
-        '(max-width: 850px), (pointer: coarse), ((orientation: landscape) and (max-height: 600px))',
-      ).matches;
-    const resConfig = RESOLUTIONS[config.resolutionName];
+      isIOS ||
+      (typeof window !== 'undefined' &&
+        window.matchMedia(
+          '(max-width: 850px), (pointer: coarse), ((orientation: landscape) and (max-height: 600px))',
+        ).matches);
+
+    const resConfig = RESOLUTIONS[config.resolutionName] || RESOLUTIONS['fhd'];
     const [targetW, targetH] = resConfig.size;
 
     // Bitrate selection: matched to Python libx264 CRF 21~26 real-world compression ratios with FPS ratio scaling
@@ -648,8 +591,8 @@ export class WebCodecsExporter {
     exportCanvas.height = targetH;
 
     // mp4-muxer setup
-    const muxer = new Muxer({
-      target: new ArrayBufferTarget(),
+    const muxer = new Mp4Muxer.Muxer({
+      target: new Mp4Muxer.ArrayBufferTarget(),
       video: {
         codec: 'avc',
         width: targetW,
@@ -661,9 +604,8 @@ export class WebCodecsExporter {
 
     let videoEncoder: VideoEncoder | null = null;
     let receivedChunkCount = 0;
-    let encoderError: DOMException | null = null;
+    const encoding: { error?: DOMException; decoderConfig?: VideoDecoderConfig } = {};
     let decoderConfigSent = false;
-    let safeDecoderConfigRef: VideoDecoderConfig | undefined;
 
     try {
       // Codec profile & level:
@@ -707,7 +649,7 @@ export class WebCodecsExporter {
                 fullRange: false,
               },
             };
-            safeDecoderConfigRef = safeDecoderConfig;
+            encoding.decoderConfig = safeDecoderConfig;
             muxer.addVideoChunk(chunk, { decoderConfig: safeDecoderConfig });
             if (raw?.description || receivedChunkCount >= 3) {
               decoderConfigSent = true;
@@ -718,7 +660,7 @@ export class WebCodecsExporter {
         },
         error: (e) => {
           console.error('VideoEncoder error:', e);
-          encoderError = e;
+          encoding.error = e;
         },
       });
 
@@ -758,7 +700,6 @@ export class WebCodecsExporter {
         }
       }
 
-      signal.throwIfAborted();
       videoEncoder.configure(encoderConfig);
 
       config.onProgress(0, 1, config.segments.length);
@@ -775,7 +716,7 @@ export class WebCodecsExporter {
       let lastOutputTimestampMicros = -1;
 
       for (let segIdx = 0; segIdx < config.segments.length; segIdx++) {
-        if (signal.aborted) break;
+        if (this.isCancelled) break;
         let segment = config.segments[segIdx];
 
         // Prepare video elements for this clip's cameras
@@ -817,7 +758,7 @@ export class WebCodecsExporter {
           }
 
           // Preload, prime hardware decoders, seek to segment.startSec, and verify actual canvas pixel output before encoding
-          await this.warmupSegmentVideos(segVideos, segment.startSec, signal);
+          await this.warmupSegmentVideos(segVideos, segment.startSec, isIOS);
 
           // A SavedClip may end after only a few seconds. Never encode the scanner's
           // 60-second estimate after the master video has already ended.
@@ -860,9 +801,7 @@ export class WebCodecsExporter {
             let currentSourceSec = segment.startSec;
             let isFirstSegmentFrame = true;
 
-            while (currentSourceSec < segment.endSec - 1e-9 && !signal.aborted) {
-              if (document.hidden) await waitForVisibleDocument(signal);
-              signal.throwIfAborted();
+            while (currentSourceSec < segment.endSec - 1e-9 && !this.isCancelled) {
               if (isFirstSegmentFrame) {
                 // Frame #0 is already pre-seeked and pixel-verified by warmupSegmentVideos
                 isFirstSegmentFrame = false;
@@ -884,7 +823,7 @@ export class WebCodecsExporter {
                       }
 
                       let settled = false;
-                      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+                      let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
                       const finish = () => {
                         if (settled) return;
@@ -920,9 +859,21 @@ export class WebCodecsExporter {
               const telemetryFrameIdx = decoder
                 ? decoder.getFrameIndexAtTime(currentSourceSec, config.sourceFps)
                 : currentFrameIdx;
-              const telemetry = decoder
+              const telemetry: TelemetryData = decoder
                 ? decoder.getFrameTelemetry(telemetryFrameIdx)
-                : DEFAULT_TELEMETRY;
+                : {
+                    speed_kmh: 0,
+                    steering_deg: 0,
+                    accel_pct: 0,
+                    brake_applied: false,
+                    brake_pct: 0,
+                    ap_mode: 'MANUAL',
+                    left_blinker: false,
+                    right_blinker: false,
+                    lat: 0,
+                    lon: 0,
+                    heading: 0,
+                  };
 
               const timestampText = segment.baseTimeStr;
 
@@ -937,9 +888,6 @@ export class WebCodecsExporter {
                 config.sourceFps,
                 config.options,
               );
-
-              if (document.hidden) await waitForVisibleDocument(signal);
-              signal.throwIfAborted();
 
               // Feed to VideoEncoder
               const timestampMicros = Math.round((outputFrameCount * 1_000_000) / config.targetFps);
@@ -956,7 +904,7 @@ export class WebCodecsExporter {
               outputFrameCount++;
               currentSourceSec += frameStepSec;
 
-              const progressPct = Math.min(99, Math.round((outputFrameCount / totalFrames) * 100));
+              const progressPct = Math.min(100, Math.round((outputFrameCount / totalFrames) * 100));
               config.onProgress(progressPct, segIdx + 1, config.segments.length);
 
               // Yield event loop without triggering background timer throttling in hidden tabs
@@ -985,23 +933,24 @@ export class WebCodecsExporter {
         }
       }
 
-      signal.throwIfAborted();
+      if (this.isCancelled) {
+        throw new Error(i18n.t('error_export_cancelled'));
+      }
 
       if (outputFrameCount === 0) {
         throw new Error(i18n.t('error_no_frames'));
       }
 
-      if (encoderError) throw encoderError;
-      await waitForVisibleDocument(signal);
-      await flushVideoEncoder(videoEncoder, signal);
-      signal.throwIfAborted();
+      config.onProgress(100, config.segments.length, config.segments.length);
 
-      if (encoderError) {
-        throw encoderError;
+      await videoEncoder.flush();
+
+      if (encoding.error) {
+        throw new Error(i18n.t('error_encoder', { 0: encoding.error.message }));
       }
 
       if (receivedChunkCount === 0) {
-        throw new Error(i18n.t('error_no_frames'));
+        throw new Error(i18n.t('error_no_chunks'));
       }
 
       // 2. muxer.finalize() 직전 내부 트랙 강제 패치 (최후의 안전장치)
@@ -1018,9 +967,9 @@ export class WebCodecsExporter {
         },
       };
 
-      if (safeDecoderConfigRef) {
-        if (!safeDecoderConfigRef.colorSpace) {
-          safeDecoderConfigRef.colorSpace = {
+      if (encoding.decoderConfig) {
+        if (!encoding.decoderConfig.colorSpace) {
+          encoding.decoderConfig.colorSpace = {
             primaries: 'bt709',
             transfer: 'bt709',
             matrix: 'bt709',
@@ -1030,32 +979,31 @@ export class WebCodecsExporter {
       }
 
       try {
-        type Track = { info?: { decoderConfig?: VideoDecoderConfig } };
-        type PossibleTrack = Track & { videoTrack?: Track; _videoTrack?: Track };
-        const fields = muxer as unknown as Record<PropertyKey, unknown>;
+        const internals = muxer as unknown as Record<PropertyKey, unknown>;
         const candidates = [
-          fields._videoTrack,
-          fields.videoTrack,
-          fields.track,
-          fields._track,
-          fields.tracks,
-          fields._tracks,
+          internals._videoTrack,
+          internals.videoTrack,
+          internals.track,
+          internals._track,
+          internals.tracks,
+          internals._tracks,
         ];
-        for (const sym of Object.getOwnPropertySymbols(fields)) {
-          candidates.push(fields[sym]);
+        for (const sym of Object.getOwnPropertySymbols(internals)) {
+          candidates.push(internals[sym]);
         }
-        for (const key of Object.getOwnPropertyNames(fields)) {
-          candidates.push(fields[key]);
+        for (const key of Object.getOwnPropertyNames(internals)) {
+          candidates.push(internals[key]);
         }
         for (const item of candidates) {
           if (item && typeof item === 'object') {
-            const candidate = item as PossibleTrack;
-            const track = candidate.info
-              ? candidate
-              : (candidate.videoTrack ?? candidate._videoTrack);
-            if (track && track.info) {
+            type Track = { info?: { decoderConfig?: VideoDecoderConfig } };
+            const container = item as Track & { videoTrack?: Track; _videoTrack?: Track };
+            const track = container.info
+              ? container
+              : container.videoTrack || container._videoTrack;
+            if (track?.info) {
               if (!track.info.decoderConfig) {
-                track.info.decoderConfig = safeDecoderConfigRef || defaultSafeConfig;
+                track.info.decoderConfig = encoding.decoderConfig || defaultSafeConfig;
               } else if (!track.info.decoderConfig.colorSpace) {
                 track.info.decoderConfig.colorSpace = {
                   primaries: 'bt709',
@@ -1077,9 +1025,7 @@ export class WebCodecsExporter {
       if (!buffer || buffer.byteLength === 0) {
         throw new Error(i18n.t('error_empty_output'));
       }
-      const blob = new Blob([buffer], { type: 'video/mp4' });
-      config.onProgress(100, config.segments.length, config.segments.length);
-      return blob;
+      return new Blob([buffer], { type: 'video/mp4' });
     } finally {
       if (videoEncoder && videoEncoder.state !== 'closed') {
         videoEncoder.close();

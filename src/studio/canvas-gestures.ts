@@ -42,31 +42,37 @@ export const hitTestTelemetryColumn = (cx: number, cy: number): string | null =>
   const canvas = getCanvas();
   const layout = telemetryLayout();
   if (!canvas || !layout || layout.bottomH <= 0 || cy < layout.frontH) return null;
-  const modern =
-    getStudio().options.telemetryStyle === 'cards' ||
-    getStudio().options.telemetryStyle === 'strip';
-  const pad = modern ? 0 : 12 * (canvas.width / 1920);
-  return (
-    layout.boxes.find(
-      ({ x, y, width, height }) =>
-        cx >= x - pad && cx < x + width + pad && cy >= y && cy < y + height,
-    )?.key ?? null
-  );
+  const pad = 12 * (canvas.width / 1920);
+  for (const [key, [x, width]] of Object.entries(layout.colBoxMap)) {
+    if (cx >= layout.offsetX + x - pad && cx <= layout.offsetX + x + width + pad) return key;
+  }
+  return null;
 };
 
-export const dragTelemetryColumn = (cx: number, cy: number) => {
+export const dragTelemetryColumn = (cx: number) => {
   const dragging = getStudio().options.draggingCol;
   const layout = telemetryLayout();
-  if (!dragging || !layout) return;
-  const target = hitTestTelemetryColumn(cx, cy);
-  if (!target || target === dragging) return;
-  const order = [...layout.order];
-  const a = order.indexOf(dragging);
-  const b = order.indexOf(target);
-  if (a < 0 || b < 0) return;
-  order[a] = target;
-  order[b] = dragging;
-  setTelemetryOrder(order);
+  if (!dragging || !layout || layout.bottomH <= 0) return;
+  const { order, colBoxMap, offsetX } = layout;
+  const activeKeys = order.filter((key) => key in colBoxMap);
+  const index = activeKeys.indexOf(dragging);
+  if (index < 0) return;
+  const left = activeKeys[index - 1];
+  const right = activeKeys[index + 1];
+  let target: string | undefined;
+  if (left) {
+    const [x, width] = colBoxMap[left];
+    if (cx < offsetX + x + width * 0.55) target = left;
+  }
+  if (!target && right) {
+    const [x, width] = colBoxMap[right];
+    if (cx > offsetX + x + width * 0.45) target = right;
+  }
+  if (!target) return;
+  const reordered = [...order];
+  reordered[order.indexOf(dragging)] = target;
+  reordered[order.indexOf(target)] = dragging;
+  setTelemetryOrder(reordered);
 };
 
 export const setDraggingColumn = (key: string | null) => setOption('draggingCol', key);

@@ -23,7 +23,7 @@ CT Dashcam Studio Web is a single-page browser app for playing and editing Tesla
 - `src/core`: framework-free engine:
   - `renderer.ts`: canvas overlay drawing
   - `exporter.ts`: export with browser video elements, WebCodecs and mp4-muxer
-  - `sei-decoder.ts` and `sei-worker.ts`: SEI telemetry (Mediabunny MP4 demux and `@bufbuild/protobuf`), runs in a Web Worker
+  - `sei-decoder.ts` and `sei-worker.ts`: SEI telemetry from the legacy MP4 sample table and wire parser, runs in a Web Worker
   - `clip-scanner.ts`: groups files into clips/folders
   - `map-loader.ts`: OSM tiles with LRU cache
   - `constants.ts`, `capability.ts`, `rear-correction.ts`, `qr-code.ts` (fixed precomputed matrix)
@@ -49,7 +49,6 @@ CT Dashcam Studio Web is a single-page browser app for playing and editing Tesla
 - Pass read-only data from parent to child via props.
 - Use React context when children write a parent's state in a compound component (examples: `ToggleGroup`'s group id for the sliding indicator, `ClipTreeContext` for folder open state, `ClipSearchContext` for the search query).
 - Store app-wide state (layout mode, active panel, dialogs, playback, export progress) in the zustand store (`useStudio`) in `src/studio/store.ts`. Use `getStudio()` and `setStudio()` from non-React code.
-- Use `@tanstack/react-query` only for async queries (currently the "can this device encode this resolution" check). Never use it as a state store.
 
 ## Code Style
 
@@ -81,7 +80,7 @@ CT Dashcam Studio Web is a single-page browser app for playing and editing Tesla
 - Original code is licensed under `GPL-3.0-only`. Keep `LICENSE` byte-identical (a test checks its SHA-256).
 - Load Google Analytics only after opt-in via `src/lib/consent.ts` (Basic Consent Mode v2). Do not add any other tracking.
 - The service worker (built by `@unplugin-pwa/vite`, Workbox `generateSW`) caches only the app's own files and fonts, never user videos or telemetry. The production worker must not handle the `/dev/` path.
-- When runtime dependencies change, update `THIRD_PARTY_NOTICES.md` and regenerate `licenses/runtime-dependencies.txt` from `pnpm licenses list --prod` (keeping every bundled package's full license text). Keep notices for Mediabunny (`MPL-2.0`) and `@bufbuild/protobuf` (`Apache-2.0 AND BSD-3-Clause`).
+- When runtime dependencies change, update `THIRD_PARTY_NOTICES.md` and regenerate `licenses/runtime-dependencies.txt` from `pnpm licenses list --prod` (keeping every bundled package's full license text).
 
 ## Deployment
 

@@ -1,4 +1,3 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { domMax, LazyMotion, MotionConfig } from 'motion/react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -16,16 +15,14 @@ if (root) {
   watchLayoutMode();
   createRoot(root).render(
     <StrictMode>
-      <QueryClientProvider client={new QueryClient()}>
-        <LazyMotion features={domMax} strict>
-          <MotionConfig reducedMotion="user">
-            <TooltipProvider>
-              <StudioPage />
-            </TooltipProvider>
-          </MotionConfig>
-        </LazyMotion>
-        <Toaster position="top-center" />
-      </QueryClientProvider>
+      <LazyMotion features={domMax} strict>
+        <MotionConfig reducedMotion="user">
+          <TooltipProvider>
+            <StudioPage />
+          </TooltipProvider>
+        </MotionConfig>
+      </LazyMotion>
+      <Toaster position="top-center" />
     </StrictMode>,
   );
 }

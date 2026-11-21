@@ -3,11 +3,9 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ScrollArea } from '@/components/atoms/scroll-area';
-import { OptionSelect } from '@/components/molecules/option-select';
 import { PanelHeader } from '@/components/molecules/panel-header';
 import { SliderField } from '@/components/molecules/slider-field';
 import { SwitchRow } from '@/components/molecules/switch-row';
-import { TELEMETRY_STYLES } from '@/core/telemetry-style';
 import { hasPillarCameras, setOption, useStudio } from '@/studio/store';
 
 import { plainLabel } from './panel-tabs';
@@ -108,22 +106,6 @@ export const OverlaysPanel = () => {
     <section className="flex min-h-0 flex-1 flex-col">
       <PanelHeader title={t('drawer_overlays')} />
       <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-2 px-3 pb-2">
-          <span className="text-subtitle">{t('hud_style')}</span>
-          <OptionSelect
-            label={t('hud_style')}
-            value={options.telemetryStyle ?? 'classic'}
-            options={TELEMETRY_STYLES.map((value) => ({ value, label: t(`hud_style_${value}`) }))}
-            onValueChange={(value) => setOption('telemetryStyle', value)}
-          />
-        </div>
-        <SwitchRow
-          label={t('hud_new_mode_labels')}
-          description={t('hud_new_mode_labels_description')}
-          title={t('hud_new_mode_labels_description')}
-          checked={options.newDriveModeLabels ?? false}
-          onCheckedChange={(checked) => setOption('newDriveModeLabels', checked)}
-        />
         <div className="flex flex-col">
           <For each={OVERLAY_KEYS}>
             {(key) => (

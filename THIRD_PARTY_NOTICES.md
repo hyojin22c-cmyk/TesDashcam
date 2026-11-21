@@ -2,13 +2,6 @@
 
 CT Dashcam Studio Web original project code is offered under GPL-3.0-only only where the owner holds the necessary rights. This does not replace the licenses below or clear uncertain artwork. See LICENSE_AUDIT.md.
 
-## Distributed runtime code: Mediabunny 1.66.2
-
-Source: https://github.com/Vanilagy/mediabunny
-Installed version locked in pnpm-lock.yaml: 1.66.2. Mozilla Public License 2.0 (MPL-2.0), copyright (c) 2026-present Vanilagy and contributors. The telemetry parser bundles Mediabunny without modification to read MP4 samples.
-
-MPL-2.0 applies file by file. The source form of every Mediabunny file is available at the link above and in the npm package mediabunny@1.66.2. If these files are ever modified, the modified files must stay under MPL-2.0 and their source must be offered the same way. Mediabunny carries no "Incompatible With Secondary Licenses" notice, so section 3.3 of the MPL allows it to be distributed together with this GPL-3.0-only project. The full license text is in licenses/mediabunny-MPL-2.0.txt. Do not relicense this component as original project code.
-
 ## Distributed runtime code: mp4-muxer 5.2.2
 
 The exporter uses mp4-muxer under the MIT license to write MP4 files. Source is available from https://github.com/Vanilagy/mp4-muxer and npm. The full notice is in licenses/mp4-muxer-MIT.txt.
@@ -36,8 +29,6 @@ The React interface bundles the following packages. Versions are locked in pnpm-
 | @babel/runtime | 8.1.2 | MIT | licenses/babel-runtime-MIT.txt |
 | zustand | 5.1.0 | MIT | licenses/zustand-MIT.txt |
 | es-toolkit | 1.53.2 | MIT | licenses/es-toolkit-MIT.txt |
-| @tanstack/react-query | 5.108.2 | MIT | licenses/tanstack-react-query-MIT.txt |
-| @tanstack/query-core | 5.108.2 | MIT | licenses/tanstack-query-core-MIT.txt |
 | motion | 14.14.0 | MIT | licenses/motion-MIT.txt |
 | framer-motion | 14.14.0 | MIT | licenses/framer-motion-MIT.txt |
 | motion-dom | 14.14.0 | MIT | licenses/motion-dom-MIT.txt |
@@ -51,9 +42,8 @@ The React interface bundles the following packages. Versions are locked in pnpm-
 | react-hotkeys-hook | 5.4.0 | MIT | licenses/runtime-dependencies.txt |
 | @use-gesture/react | 10.3.1 | MIT | licenses/runtime-dependencies.txt |
 | i18next-browser-languagedetector | 8.3.1 | MIT | licenses/runtime-dependencies.txt |
-| @bufbuild/protobuf | 2.17.0 | Apache-2.0 AND BSD-3-Clause | licenses/runtime-dependencies.txt |
 
-licenses/runtime-dependencies.txt holds the original license text of every package bundled into the site, including the packages these libraries depend on (for example the unified, remark, micromark, mdast and hast packages behind react-markdown) and the Workbox runtime that the service worker build bundles from @vite-pwa/workbox-swkit. It is generated from `pnpm licenses list --prod`; regenerate it whenever runtime dependencies change. @bufbuild/protobuf publishes its terms in source headers instead of a license file: Apache-2.0 (Buf Technologies) for most files and BSD-3-Clause (Google) for the wire-format code; both headers and the Apache-2.0 text are reproduced in that file.
+licenses/runtime-dependencies.txt holds the original license text of every package bundled into the site, including the packages these libraries depend on (for example the unified, remark, micromark, mdast and hast packages behind react-markdown) and the Workbox runtime that the service worker build bundles from @vite-pwa/workbox-swkit. It is generated from `pnpm licenses list --prod`; regenerate it whenever runtime dependencies change.
 | sonner | 2.0.8 | MIT | licenses/sonner-MIT.txt |
 | lucide-react | 1.73.0 | ISC | licenses/lucide-react-ISC.txt |
 | clsx | 2.1.1 | MIT | licenses/clsx-MIT.txt |
@@ -97,7 +87,6 @@ SOFTWARE.
 
 Vite 8.3.8 is a development/build tool, not an application runtime dependency. It bundles with Rolldown 1.2.19, which may emit small runtime helpers and the modulepreload polyfill into the distributed viewer bundle. Vite's supplied license with its bundled third-party notices is preserved in licenses/vite-NOTICES.txt and Rolldown's MIT notice in licenses/rolldown-MIT.txt. Tailwind CSS, TypeScript, oxlint, oxfmt, Vitest and the React Compiler only run at build or test time. The locked dependency versions are in pnpm-lock.yaml.
 
-Mediabunny also declares @types/dom-webcodecs 0.1.13 and @types/dom-mediacapture-transform 0.1.12, MIT copyright Microsoft Corporation. These type declarations are erased and are not JavaScript runtime components. Their notices are retained in licenses/dom-webcodecs-MIT.txt and licenses/dom-mediacapture-transform-MIT.txt for source/dependency redistribution.
 
 ## OpenStreetMap
 

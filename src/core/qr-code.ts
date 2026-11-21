@@ -66,7 +66,7 @@ export const drawQRCode = (
   const iy = Math.round(y);
   const isize = Math.round(size);
 
-  ctx.fillStyle = '#e3e3e3';
+  ctx.fillStyle = '#a89a90';
   ctx.fillRect(ix, iy, isize, isize);
 
   const numModules = QR_MATRIX.length; // 39
@@ -86,5 +86,8 @@ export const drawQRCode = (
     }
   }
 
+  ctx.strokeStyle = '#52463c';
+  ctx.lineWidth = Math.max(1, Math.round(isize / 64));
+  ctx.strokeRect(ix, iy, isize, isize);
   ctx.restore();
 };

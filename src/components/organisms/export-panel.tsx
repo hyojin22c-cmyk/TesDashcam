@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/atoms/button';
@@ -9,7 +8,6 @@ import { PanelHeader } from '@/components/molecules/panel-header';
 import { RESOLUTIONS, type ResolutionName } from '@/core/constants';
 import { isMobileDevice } from '@/lib/platform';
 import {
-  canEncodeResolution,
   cancelExport,
   EXPORT_SPEEDS,
   estimateSizeMb,
@@ -73,11 +71,6 @@ export const ExportPanel = () => {
   const speed = useStudio((state) => state.options.exportSpeed ?? 1);
   const fps = useStudio((state) => state.exportFps);
   const estimate = useStudio(estimateSizeMb);
-  const { data: encodable = true } = useQuery({
-    queryKey: ['encodable', resolution, fps],
-    queryFn: () => canEncodeResolution(resolution, fps),
-    staleTime: Infinity,
-  });
   const summary = useStudio((state) => rangeSummary(state, t));
   const hasClip = useStudio((state) => state.activeClip !== null);
   const exporting = useStudio((state) => state.exportProgress !== null);
@@ -126,11 +119,6 @@ export const ExportPanel = () => {
               {estimate.toFixed(1)} MB
             </dd>
           </dl>
-          {!encodable && (
-            <p className="px-1 text-body text-destructive">
-              {t(window.isSecureContext ? 'encode_unsupported' : 'http_warning')}
-            </p>
-          )}
           <Button
             size="lg"
             variant={exporting ? 'secondary' : 'default'}

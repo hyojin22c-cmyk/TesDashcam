@@ -1,8 +1,6 @@
 // Ported from core/map_loader.py (OpenStreetMapTileLoader)
 import { i18n } from '@/i18n';
 
-const MAX_CACHED_TILES = 128;
-
 export class OpenStreetMapTileLoader {
   private static tileCache: Map<string, HTMLImageElement> = new Map();
   private static pendingFetches: Map<string, Promise<HTMLImageElement | null>> = new Map();
@@ -21,11 +19,8 @@ export class OpenStreetMapTileLoader {
     tileY: number,
   ): Promise<HTMLImageElement | null> {
     const key = `${zoom}/${tileX}/${tileY}`;
-    const cached = this.tileCache.get(key);
-    if (cached) {
-      this.tileCache.delete(key);
-      this.tileCache.set(key, cached);
-      return cached;
+    if (this.tileCache.has(key)) {
+      return this.tileCache.get(key)!;
     }
     if (this.pendingFetches.has(key)) {
       return this.pendingFetches.get(key)!;
@@ -42,9 +37,6 @@ export class OpenStreetMapTileLoader {
           img.src = url;
         });
         this.tileCache.set(key, img);
-        if (this.tileCache.size > MAX_CACHED_TILES) {
-          this.tileCache.delete(this.tileCache.keys().next().value!);
-        }
         return img;
       } catch {
         return null;
@@ -73,13 +65,13 @@ export class OpenStreetMapTileLoader {
     ctx.rect(dx, dy, dw, dh);
     ctx.clip();
 
-    ctx.fillStyle = '#1c1c22';
+    // Dark background
+    ctx.fillStyle = '#161b22';
     ctx.fillRect(dx, dy, dw, dh);
 
     if (lat === 0 && lon === 0) {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '500 13px "Pretendard Variable", Pretendard, system-ui, sans-serif';
-      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#6e7681';
+      ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(i18n.t('map_no_gps'), dx + dw / 2, dy + dh / 2);
       ctx.restore();
