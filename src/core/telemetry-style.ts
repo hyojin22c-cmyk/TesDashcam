@@ -93,6 +93,40 @@ const timestampParts = (base: string, seconds: number) => {
   ];
 };
 
+const STEERING_WHEEL_DIAMETER = 73; // 68px ring plus 5px stroke at 1x
+
+export const drawSteeringWheel = (
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  angleDeg: number,
+  scale: number,
+  color: string,
+): void => {
+  const ring = 34 * scale;
+  const hub = 8 * scale;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((angleDeg * Math.PI) / 180);
+  ctx.strokeStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = Math.max(2, 5 * scale);
+  ctx.beginPath();
+  ctx.arc(0, 0, ring, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(2, 4 * scale);
+  ctx.beginPath();
+  ctx.arc(0, 0, hub, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  for (const angle of [0, Math.PI / 2, Math.PI]) {
+    ctx.moveTo(Math.cos(angle) * hub, Math.sin(angle) * hub);
+    ctx.lineTo(Math.cos(angle) * ring, Math.sin(angle) * ring);
+  }
+  ctx.stroke();
+  ctx.restore();
+};
+
 export const drawModernTelemetry = (
   ctx: CanvasRenderingContext2D,
   boxes: TelemetryBox[],
@@ -211,7 +245,19 @@ export const drawModernTelemetry = (
         break;
       case 'steering': {
         const size = present ? Math.min((large ? 68 : 36) * scale, usable * 0.42) : 0;
-        if (size) drawWheel(left + size / 2, valueY, telemetry.steering_deg, size);
+        if (size) {
+          const centerX = left + size / 2;
+          if (cards)
+            drawSteeringWheel(
+              ctx,
+              centerX,
+              valueY,
+              telemetry.steering_deg,
+              size / STEERING_WHEEL_DIAMETER,
+              fg,
+            );
+          else drawWheel(centerX, valueY, telemetry.steering_deg, size);
+        }
         const gap = size ? size + 8 * scale : 0;
         renderText(
           number(telemetry.steering_deg, '°'),

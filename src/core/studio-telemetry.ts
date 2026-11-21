@@ -1,6 +1,6 @@
 import { clamp } from 'es-toolkit';
 
-import { driveModeLabel, TELEMETRY_FONT } from './telemetry-style';
+import { driveModeLabel, drawSteeringWheel, TELEMETRY_FONT } from './telemetry-style';
 
 import type { RenderOptions } from './renderer';
 import type { TelemetryData } from './sei-decoder';
@@ -101,37 +101,6 @@ const drawTurnSignals = (
   ctx.restore();
 };
 
-const drawSteeringWheel = (
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  angleDeg: number,
-  scale = 1.0,
-): void => {
-  const ring = 34 * scale;
-  const hub = 8 * scale;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate((angleDeg * Math.PI) / 180);
-  ctx.strokeStyle = COLOR.text;
-  ctx.lineCap = 'round';
-  ctx.lineWidth = Math.max(2, 5 * scale);
-  ctx.beginPath();
-  ctx.arc(0, 0, ring, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.lineWidth = Math.max(2, 4 * scale);
-  ctx.beginPath();
-  ctx.arc(0, 0, hub, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  for (const angle of [0, Math.PI / 2, Math.PI]) {
-    ctx.moveTo(Math.cos(angle) * hub, Math.sin(angle) * hub);
-    ctx.lineTo(Math.cos(angle) * ring, Math.sin(angle) * ring);
-  }
-  ctx.stroke();
-  ctx.restore();
-};
-
 export const drawStudioTelemetry = (
   ctx: CanvasRenderingContext2D,
   colBoxMap: Record<string, [number, number]>,
@@ -201,7 +170,14 @@ export const drawStudioTelemetry = (
 
   if ('steering' in colBoxMap) {
     const [x] = colBoxMap.steering;
-    drawSteeringWheel(ctx, offsetX + x + px(52), iconCenterY, telemetry.steering_deg, scale);
+    drawSteeringWheel(
+      ctx,
+      offsetX + x + px(52),
+      iconCenterY,
+      telemetry.steering_deg,
+      scale,
+      COLOR.text,
+    );
   }
 
   if ('turn_signal' in colBoxMap) {
