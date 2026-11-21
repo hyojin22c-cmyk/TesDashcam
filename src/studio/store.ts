@@ -3,7 +3,7 @@ import { create } from 'zustand';
 
 import { DEFAULT_RESOLUTION, type ResolutionName } from '@/core/constants';
 import { DEFAULT_RENDER_OPTIONS, type RenderOptions } from '@/core/renderer';
-import { DEFAULT_CARD_PALETTE, TELEMETRY_STYLES } from '@/core/telemetry-style';
+import { DEFAULT_CARD_ACCENT, TELEMETRY_CARDS, TELEMETRY_STYLES } from '@/core/telemetry-style';
 
 import type { ClipItem, FolderGroup } from '@/core/clip-scanner';
 import type { TranslationKey } from '@/i18n';
@@ -102,6 +102,7 @@ export interface StudioState {
 const THEME_KEY = 'ct_studio_theme';
 const VIEW_MODE_KEY = 'ct_view_mode';
 const TELEMETRY_ORDER_KEY = 'ct_telemetry_order';
+const TELEMETRY_CARD_ORDER_KEY = 'ct_telemetry_card_order';
 const TELEMETRY_STYLE_KEY = 'ct_telemetry_style';
 const DRIVE_MODE_LABELS_KEY = 'ct_drive_mode_labels';
 const AUTO_NEXT_KEY = 'ct_auto_next';
@@ -153,6 +154,7 @@ export const useStudio = create<StudioState>()(() => ({
     ...DEFAULT_RENDER_OPTIONS,
     pillar_pip: false,
     telemetryOrder: savedTelemetryOrder,
+    telemetryCardOrder: readStorage(TELEMETRY_CARD_ORDER_KEY, z.array(z.enum(TELEMETRY_CARDS))),
     telemetryStyle: readStorage(TELEMETRY_STYLE_KEY, z.enum(TELEMETRY_STYLES), String) ?? 'classic',
     newDriveModeLabels: readStorage(DRIVE_MODE_LABELS_KEY, z.enum(['0', '1']), String) === '1',
   },
@@ -186,6 +188,14 @@ export const setOption = <K extends keyof RenderOptions>(key: K, value: RenderOp
 };
 
 export const setTelemetryOrder = (order: string[] | null) => {
+  if (getStudio().options.telemetryStyle === 'cards') {
+    const cards = order
+      ? order.flatMap((key) => TELEMETRY_CARDS.filter((card) => card === key))
+      : [...TELEMETRY_CARDS];
+    setOption('telemetryCardOrder', cards);
+    writeStorage(TELEMETRY_CARD_ORDER_KEY, JSON.stringify(cards));
+    return;
+  }
   setOption('telemetryOrder', order ?? undefined);
   writeStorage(TELEMETRY_ORDER_KEY, order ? JSON.stringify(order) : null);
 };
@@ -201,12 +211,10 @@ export const applyStudioTheme = (theme = getStudio().theme) => {
   root.classList.toggle('dark', !theme.startsWith('paper'));
   const styles = getComputedStyle(root);
   const color = styles.getPropertyValue('--background').trim();
-  const cardPalette = { ...DEFAULT_CARD_PALETTE };
-  for (const key of Object.keys(cardPalette) as (keyof typeof cardPalette)[]) {
-    const token = key === 'speedCard' ? 'speed-card' : key;
-    cardPalette[key] = styles.getPropertyValue(`--hud-card-${token}`).trim() || cardPalette[key];
-  }
-  setOption('cardPalette', cardPalette);
+  setOption(
+    'cardAccent',
+    styles.getPropertyValue('--hud-card-accent').trim() || DEFAULT_CARD_ACCENT,
+  );
   if (color) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
 };
 
