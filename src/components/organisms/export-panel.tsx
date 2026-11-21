@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/atoms/button';
@@ -6,6 +7,7 @@ import { ScrollArea } from '@/components/atoms/scroll-area';
 import { OptionSelect } from '@/components/molecules/option-select';
 import { PanelHeader } from '@/components/molecules/panel-header';
 import { RESOLUTIONS, type ResolutionName } from '@/core/constants';
+import { resolveVideoEncoderConfig } from '@/core/encoder-config';
 import { isMobileDevice } from '@/lib/platform';
 import {
   cancelExport,
@@ -71,6 +73,20 @@ export const ExportPanel = () => {
   const speed = useStudio((state) => state.options.exportSpeed ?? 1);
   const fps = useStudio((state) => state.exportFps);
   const estimate = useStudio(estimateSizeMb);
+  const [unsupported, setUnsupported] = useState('');
+  const format = `${resolution}:${fps}`;
+  useEffect(() => {
+    if (!window.isSecureContext || typeof VideoEncoder === 'undefined') return;
+    let active = true;
+    resolveVideoEncoderConfig(resolution, fps)
+      .then(({ supported }) => {
+        if (active) setUnsupported(supported === false ? format : '');
+      })
+      .catch(reportError);
+    return () => {
+      active = false;
+    };
+  }, [resolution, fps, format]);
   const summary = useStudio((state) => rangeSummary(state, t));
   const hasClip = useStudio((state) => state.activeClip !== null);
   const exporting = useStudio((state) => state.exportProgress !== null);
@@ -119,6 +135,13 @@ export const ExportPanel = () => {
               {estimate.toFixed(1)} MB
             </dd>
           </dl>
+          {(!window.isSecureContext ||
+            typeof VideoEncoder === 'undefined' ||
+            unsupported === format) && (
+            <p className="px-1 text-body text-destructive">
+              {t(window.isSecureContext ? 'encode_unsupported' : 'http_warning')}
+            </p>
+          )}
           <Button
             size="lg"
             variant={exporting ? 'secondary' : 'default'}

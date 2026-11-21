@@ -158,7 +158,7 @@ export const useStudio = create<StudioState>()(() => ({
   },
   autoNext: savedAutoNext === '1',
   resolution: DEFAULT_RESOLUTION,
-  exportFps: 36,
+  exportFps: 30,
   loadProgress: null,
   seiProgress: null,
   exportProgress: null,

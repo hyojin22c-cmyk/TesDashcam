@@ -6,6 +6,7 @@ import { i18n } from '@/i18n';
 import { ensureClipFiles, type ClipItem } from './clip-scanner';
 import { clampSegmentToMedia } from './clip-timing';
 import { RESOLUTIONS, type CameraKey } from './constants';
+import { resolveVideoEncoderConfig } from './encoder-config';
 import { OverlayRenderer, type RenderOptions } from './renderer';
 
 import type { RealTeslaSEIDecoder, TelemetryData } from './sei-decoder';
@@ -576,15 +577,6 @@ export class WebCodecsExporter {
     const resConfig = RESOLUTIONS[config.resolutionName] || RESOLUTIONS['fhd'];
     const [targetW, targetH] = resConfig.size;
 
-    // Bitrate selection: matched to Python libx264 CRF 21~26 real-world compression ratios with FPS ratio scaling
-    const baseBitrate = resConfig.bitrate_mbps;
-    const fpsRatio = Math.pow(Math.max(1, config.targetFps) / 30.0, 0.45);
-    const scaledBitrate = baseBitrate * fpsRatio;
-    const effectiveBitrateMbps = isMobile
-      ? Math.min(scaledBitrate, targetW >= 2560 ? 16.0 : targetW >= 1920 ? 10.0 : 5.5)
-      : scaledBitrate;
-    const bitrateBps = Math.round(effectiveBitrateMbps * 1_000_000);
-
     // Render canvas setup
     const exportCanvas = document.createElement('canvas');
     exportCanvas.width = targetW;
@@ -608,29 +600,10 @@ export class WebCodecsExporter {
     let decoderConfigSent = false;
 
     try {
-      // Codec profile & level:
-      // - PC & iOS: standard High Profile avc1.640028 (Level 4.0) or avc1.640032 (Level 5.0 for QHD).
-      //   Apple VideoToolbox on iOS handles High Profile natively with zero frame swap jitter and maximum hardware speed.
-      // - Android (Galaxy): Constrained Baseline Profile (avc1.42E0xx) to strictly prevent Samsung Exynos/Snapdragon
-      //   MediaCodec from generating B-frames which cause 1-3-2-4-6-5 PTS/DTS temporal jitter in Samsung Gallery.
-      let avcLevel = 'avc1.640028';
-      if (isAndroid) {
-        avcLevel =
-          targetW >= 2560 ? 'avc1.42E032' : targetW >= 1920 ? 'avc1.42E029' : 'avc1.42E01f';
-      } else if (targetW >= 2560) {
-        avcLevel = 'avc1.640032';
-      }
-
-      const encoderConfig: VideoEncoderConfig = {
-        codec: avcLevel,
-        width: targetW,
-        height: targetH,
-        bitrate: bitrateBps,
-        bitrateMode: 'variable',
-        framerate: config.targetFps,
-        avc: { format: 'avc' },
-      };
-
+      const { encoderConfig } = await resolveVideoEncoderConfig(
+        config.resolutionName,
+        config.targetFps,
+      );
       videoEncoder = new VideoEncoder({
         output: (chunk, meta) => {
           receivedChunkCount++;
@@ -663,42 +636,6 @@ export class WebCodecsExporter {
           encoding.error = e;
         },
       });
-
-      if (isAndroid) {
-        // Enforce realtime latencyMode on Android to prevent B-frame temporal reordering jitter in Samsung Gallery
-        encoderConfig.latencyMode = 'realtime';
-      }
-
-      if (typeof VideoEncoder.isConfigSupported === 'function') {
-        try {
-          let check = await VideoEncoder.isConfigSupported(encoderConfig);
-          if (!check.supported && encoderConfig.bitrateMode) {
-            delete encoderConfig.bitrateMode;
-            check = await VideoEncoder.isConfigSupported(encoderConfig);
-          }
-          if (!check.supported && encoderConfig.latencyMode) {
-            delete encoderConfig.latencyMode;
-            check = await VideoEncoder.isConfigSupported(encoderConfig);
-          }
-          if (!check.supported) {
-            encoderConfig.codec =
-              targetW >= 2560 ? 'avc1.640032' : targetW >= 1920 ? 'avc1.640029' : 'avc1.640028';
-            delete encoderConfig.latencyMode;
-            check = await VideoEncoder.isConfigSupported(encoderConfig);
-          }
-          if (!check.supported) {
-            encoderConfig.codec = 'avc1.42001f';
-            check = await VideoEncoder.isConfigSupported(encoderConfig);
-          }
-          if (!check.supported && encoderConfig.avc) {
-            delete encoderConfig.avc;
-          }
-        } catch (err) {
-          console.warn('[Exporter] VideoEncoder.isConfigSupported check fallback:', err);
-          delete encoderConfig.latencyMode;
-          delete encoderConfig.bitrateMode;
-        }
-      }
 
       videoEncoder.configure(encoderConfig);
 

@@ -82,6 +82,26 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   draggingCol: null,
 };
 
+const adjustPixels = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  brightness: number,
+  contrast: number,
+) => {
+  const pixels = ctx.getImageData(0, 0, width, height);
+  const multiplier = (1 + brightness / 100) * contrast;
+  const offset = 127.5 * (1 - contrast);
+  const lookup = Uint8ClampedArray.from({ length: 256 }, (_, value) => value * multiplier + offset);
+  const { data } = pixels;
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = lookup[data[i]];
+    data[i + 1] = lookup[data[i + 1]];
+    data[i + 2] = lookup[data[i + 2]];
+  }
+  ctx.putImageData(pixels, 0, 0);
+};
+
 export class OverlayRenderer {
   private static steeringImg: HTMLImageElement | null = null;
 
@@ -467,13 +487,13 @@ export class OverlayRenderer {
     const outH = canvas.height;
     const scale = outW / 1920.0;
 
-    // Brightness and contrast
-    const b = options.brightness;
-    const c = options.contrast;
-    if (b !== 0 || c !== 1.0) {
-      ctx.filter = `brightness(${100 + b}%) contrast(${c * 100}%)`;
-    } else {
-      ctx.filter = 'none';
+    const { brightness, contrast } = options;
+    const adjusted = brightness !== 0 || contrast !== 1;
+    const canvasFilter = typeof ctx.filter === 'string';
+    if (canvasFilter) {
+      ctx.filter = adjusted
+        ? `brightness(${100 + brightness}%) contrast(${contrast * 100}%)`
+        : 'none';
     }
 
     const { boxes, colBoxMap, fsdDividers, offsetX, frontH, bottomH, qrPx, qrPadR } =
@@ -638,6 +658,10 @@ export class OverlayRenderer {
       }
     }
 
+    if (adjusted && !canvasFilter) {
+      adjustPixels(ctx, outW, frontH, brightness, contrast);
+    }
+
     // Speed Badge on Top-Right if non-1.0x
     const pSpeed = options.playbackSpeed || 1.0;
     const eSpeed = options.exportSpeed || 1.0;
@@ -679,7 +703,7 @@ export class OverlayRenderer {
     }
 
     // Reset filter for HUD
-    ctx.filter = 'none';
+    if (canvasFilter) ctx.filter = 'none';
     const cardPalette =
       options.telemetryStyle === 'cards'
         ? (options.cardPalette ?? DEFAULT_CARD_PALETTE)
