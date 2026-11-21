@@ -28,7 +28,7 @@
    - 타임라인 및 클립 탐색기 트리 내 선택 구간 실시간 하이라이트 표시
 
 4. **WebCodecs 초고속 하드웨어 가속 인코딩**
-   - 브라우저 내장 하드웨어 비디오 인코더를 [Mediabunny](https://github.com/Vanilagy/mediabunny)로 다뤄 MP4 파일 생성
+   - 브라우저 내장 WebCodecs 인코더와 [mp4-muxer](https://github.com/Vanilagy/mp4-muxer)로 MP4 파일 생성
    - FHD (1920x1080), QHD (2560x1440), 4K UHD (3840x2160) 및 최대 8.0배속 고속 렌더링 지원
 
 5. **클라이언트 사이드 기기 성능 진단 (Device Tier)**

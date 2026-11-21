@@ -5,9 +5,13 @@ CT Dashcam Studio Web original project code is offered under GPL-3.0-only only w
 ## Distributed runtime code: Mediabunny 1.66.2
 
 Source: https://github.com/Vanilagy/mediabunny
-Installed version locked in pnpm-lock.yaml: 1.66.2. Mozilla Public License 2.0 (MPL-2.0), copyright (c) 2026-present Vanilagy and contributors. The video export code bundles Mediabunny without modification, and loads it only when an export starts.
+Installed version locked in pnpm-lock.yaml: 1.66.2. Mozilla Public License 2.0 (MPL-2.0), copyright (c) 2026-present Vanilagy and contributors. The telemetry parser bundles Mediabunny without modification to read MP4 samples.
 
 MPL-2.0 applies file by file. The source form of every Mediabunny file is available at the link above and in the npm package mediabunny@1.66.2. If these files are ever modified, the modified files must stay under MPL-2.0 and their source must be offered the same way. Mediabunny carries no "Incompatible With Secondary Licenses" notice, so section 3.3 of the MPL allows it to be distributed together with this GPL-3.0-only project. The full license text is in licenses/mediabunny-MPL-2.0.txt. Do not relicense this component as original project code.
+
+## Distributed runtime code: mp4-muxer 5.2.2
+
+The exporter uses mp4-muxer under the MIT license to write MP4 files. Source is available from https://github.com/Vanilagy/mp4-muxer and npm. The full notice is in licenses/mp4-muxer-MIT.txt.
 
 ## Distributed runtime code: viewer interface libraries
 

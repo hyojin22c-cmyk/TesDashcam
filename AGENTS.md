@@ -22,7 +22,7 @@ CT Dashcam Studio Web is a single-page browser app for playing and editing Tesla
 
 - `src/core`: framework-free engine:
   - `renderer.ts`: canvas overlay drawing
-  - `exporter.ts`: export with Mediabunny (decodes frames with `CanvasSink`, encodes with `CanvasSource`/`Output`)
+  - `exporter.ts`: export with browser video elements, WebCodecs and mp4-muxer
   - `sei-decoder.ts` and `sei-worker.ts`: SEI telemetry (Mediabunny MP4 demux and `@bufbuild/protobuf`), runs in a Web Worker
   - `clip-scanner.ts`: groups files into clips/folders
   - `map-loader.ts`: OSM tiles with LRU cache
