@@ -91,7 +91,7 @@ export const canEncodeResolution = async (resolution: ResolutionName, frameRate:
 
 export const cancelExport = () => {
   if (!getStudio().exportProgress) return;
-  exportController?.abort(new Error(i18n.t('error_export_cancelled')));
+  exportController?.abort();
   setStudio((state) => ({
     exportProgress: state.exportProgress && { ...state.exportProgress, cancelling: true },
   }));
@@ -236,6 +236,7 @@ export const startExport = async ({ confirmed = false } = {}) => {
   } catch (error) {
     if (signal.aborted) {
       setStudio({ exportStatus: null });
+      toast(i18n.t('error_export_cancelled'));
       return;
     }
     console.error('[Export Error]', error);
