@@ -195,18 +195,62 @@
   }
 }
 
+html[data-iphone] [data-layout='portrait'] {
+  padding-top: 10px;
+}
+
+#preview-launch {
+  display: none;
+}
 
 @media (prefers-reduced-motion: no-preference) {
-  #app:not(:empty) {
-    animation: preview-entrance 300ms ease;
+  #preview-launch {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: grid;
+    place-items: center;
+    background: var(--background);
+    color: var(--foreground);
   }
 
-  @keyframes preview-entrance {
+  .preview-launch-logo {
+    width: clamp(96px, 15vw, 128px);
+    height: auto;
+    border-radius: 23%;
+    animation: preview-launch-logo 700ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+  }
+
+  .preview-launch-title {
+    position: absolute;
+    bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+    inset-inline: 20px;
+    text-align: center;
+    font-size: clamp(18px, 3.2vw, 23px);
+    font-weight: 500;
+    letter-spacing: 0.025em;
+    animation: preview-launch-title 1150ms 350ms ease both;
+  }
+
+  @keyframes preview-launch-logo {
     from {
       opacity: 0;
+      transform: scale(0.96);
     }
     to {
       opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes preview-launch-title {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    57%, to {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
 }
