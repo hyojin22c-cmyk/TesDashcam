@@ -1608,6 +1608,23 @@ export class I18nManager {
       link.title = this.t('intro_link');
     });
 
+    const previewLabel: Record<SupportedLang, string> = {
+      ko: '프리뷰 디자인 열기',
+      en: 'Open preview design',
+      ja: 'プレビューのデザインを開く',
+      'zh-CN': '打开预览版设计',
+      'zh-TW': '開啟預覽版設計',
+      de: 'Vorschaudesign öffnen',
+      fr: 'Ouvrir le design en aperçu',
+      es: 'Abrir el diseño de vista previa',
+    };
+    const base = import.meta.env.BASE_URL.replace(/\/dev\/$/, '/');
+    document.querySelectorAll<HTMLAnchorElement>('[data-preview-link]').forEach(link => {
+      link.href = `${base}preview/pr-1/`;
+      link.title = previewLabel[lang];
+      link.setAttribute('aria-label', previewLabel[lang]);
+    });
+
     // 6. Export form labels
     const formLabels = document.querySelectorAll<HTMLElement>('[data-i18n]');
     formLabels.forEach((label) => {
