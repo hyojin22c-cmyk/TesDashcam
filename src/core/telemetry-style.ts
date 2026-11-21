@@ -13,7 +13,6 @@ export const TELEMETRY_FONT = '"Pretendard Variable", Pretendard, system-ui, san
 export const DEFAULT_CARD_PALETTE = {
   background: '#2a2a2b',
   surface: '#353536',
-  speedCard: '#293555',
   text: '#ffffff',
   muted: '#c2c2c2',
   accent: '#226cff',
@@ -136,7 +135,7 @@ export const drawModernTelemetry = (
     const titleY = y + (large ? 31 : 19) * scale;
     const valueY = y + (large ? 99 : 50) * scale;
     if (cards || options.draggingCol === key) {
-      ctx.fillStyle = cards ? (key === 'speed' ? palette.speedCard : palette.surface) : '#294345';
+      ctx.fillStyle = cards ? palette.surface : '#294345';
       ctx.beginPath();
       ctx.roundRect(x, y, width, height, 16 * scale);
       ctx.fill();

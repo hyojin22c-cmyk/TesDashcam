@@ -200,8 +200,7 @@ export const applyStudioTheme = (theme = getStudio().theme) => {
   const color = styles.getPropertyValue('--background').trim();
   const cardPalette = { ...DEFAULT_CARD_PALETTE };
   for (const key of Object.keys(cardPalette) as (keyof typeof cardPalette)[]) {
-    const token = key === 'speedCard' ? 'speed-card' : key;
-    cardPalette[key] = styles.getPropertyValue(`--hud-card-${token}`).trim() || cardPalette[key];
+    cardPalette[key] = styles.getPropertyValue(`--hud-card-${key}`).trim() || cardPalette[key];
   }
   setOption('cardPalette', cardPalette);
   if (color) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
