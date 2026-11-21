@@ -7,6 +7,17 @@ import { DEFAULT_RENDER_OPTIONS, type RenderOptions } from '@/core/renderer';
 import type { ClipItem, FolderGroup } from '@/core/clip-scanner';
 import type { TranslationKey } from '@/i18n';
 
+export const STUDIO_THEMES = [
+  'default',
+  'midnight',
+  'forest',
+  'burgundy',
+  'amber',
+  'paper',
+] as const;
+const ThemeSchema = z.enum(STUDIO_THEMES);
+export type StudioTheme = z.infer<typeof ThemeSchema>;
+
 const ViewModeSchema = z.enum(['auto', 'mobile', 'desktop']);
 export type ViewMode = z.infer<typeof ViewModeSchema>;
 export type LayoutMode = 'desktop' | 'portrait' | 'landscape';
@@ -70,6 +81,7 @@ export interface StudioState {
   seiProgress: SeiProgress | null;
   exportProgress: ExportProgress | null;
   exportStatus: ExportStatus | null;
+  theme: StudioTheme;
   viewMode: ViewMode;
   layoutMode: LayoutMode;
   panelTab: PanelTab;
@@ -81,6 +93,7 @@ export interface StudioState {
   legalDoc: LegalDoc;
 }
 
+const THEME_KEY = 'ct_studio_theme';
 const VIEW_MODE_KEY = 'ct_view_mode';
 const TELEMETRY_ORDER_KEY = 'ct_telemetry_order';
 const AUTO_NEXT_KEY = 'ct_auto_next';
@@ -105,6 +118,13 @@ export const writeStorage = (key: string, value: string | null) => {
   } catch {}
 };
 
+const savedTheme =
+  readStorage(THEME_KEY, ThemeSchema, String) ??
+  (import.meta.env.BASE_URL.includes('/dev/')
+    ? readStorage('ct_theme_dev', ThemeSchema, String)
+    : undefined) ??
+  readStorage('ct_theme', ThemeSchema, String) ??
+  'default';
 const savedViewMode = readStorage(VIEW_MODE_KEY, ViewModeSchema, String);
 const savedTelemetryOrder = readStorage(TELEMETRY_ORDER_KEY, z.array(z.string()));
 const savedAutoNext = readStorage(AUTO_NEXT_KEY, z.enum(['0', '1']), String);
@@ -133,6 +153,7 @@ export const useStudio = create<StudioState>()(() => ({
   seiProgress: null,
   exportProgress: null,
   exportStatus: null,
+  theme: savedTheme,
   viewMode: savedViewMode ?? 'auto',
   layoutMode: 'desktop',
   panelTab: 'clips',
@@ -159,6 +180,20 @@ export const setTelemetryOrder = (order: string[] | null) => {
 export const setAutoNext = (autoNext: boolean) => {
   setStudio({ autoNext });
   writeStorage(AUTO_NEXT_KEY, autoNext ? '1' : '0');
+};
+
+export const applyStudioTheme = (theme = getStudio().theme) => {
+  const root = document.documentElement;
+  root.dataset.theme = theme;
+  root.classList.toggle('dark', theme !== 'paper');
+  const color = getComputedStyle(root).getPropertyValue('--background').trim();
+  if (color) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+};
+
+export const setStudioTheme = (theme: StudioTheme) => {
+  applyStudioTheme(theme);
+  setStudio({ theme });
+  writeStorage(THEME_KEY, theme);
 };
 
 export const setViewMode = (viewMode: ViewMode) => {

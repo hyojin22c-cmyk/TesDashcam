@@ -12,7 +12,7 @@ Inspected 2026-11-01. Baseline: dev c746802. See COMPLIANCE_DISCOVERY.md for pre
 | Exported MP4 | Encoded locally, downloaded using URL.createObjectURL and anchor.download. | No exported-video upload endpoint found. |
 | Browser/client/session identifiers | GA cookies can exist after acceptance. No own user-profile database or account system. | Google GA receives standard identifiers and network metadata only after acceptance. GitHub/OSM receive ordinary request metadata for their separate services. |
 | Usage events | No application-defined custom GA event call found. Existing viewer config produces page_view; Google-managed measurements depend on remote account configuration. | GA only after opt-in. Query/hash stripped from explicitly supplied page_location/referrer. No new application tracking events added. |
-| UI settings | localStorage ct_language, ct_view_mode, ct_telemetry_order, ct_auto_next. Earlier versions also stored ct_theme, ct_theme_dev and ct_layout; current code no longer reads or writes them. | No transmission code for these values except language/page title implicit in permitted page usage. |
+| UI settings | localStorage ct_language, ct_view_mode, ct_telemetry_order, ct_auto_next and ct_studio_theme. The app can read supported values from earlier ct_theme and ct_theme_dev settings as a fallback. | No transmission code for these values except language/page title implicit in permitted page usage. |
 | Consent preference | Origin-local ct_analytics_consent: version + granted/denied only, no identifier or timestamp; persistent until changed/removed. Storage failure falls back to page memory. | Not sent anywhere before a grant. With GA active, Consent Mode communicates the permitted state to Google. |
 
 ## Network surfaces

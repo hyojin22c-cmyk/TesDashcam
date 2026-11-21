@@ -11,6 +11,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/molecules/dropdown-menu';
+import { OptionSelect } from '@/components/molecules/option-select';
 import { PanelHeader } from '@/components/molecules/panel-header';
 import { ToggleGroup, ToggleGroupItem } from '@/components/molecules/toggle-group';
 import { useLayoutMode } from '@/hooks/use-layout-mode';
@@ -18,7 +19,14 @@ import { LANGUAGE_NAMES, normalizeLang, setLanguage, SUPPORTED_LANGS } from '@/i
 import { FEEDBACK_URL, PC_REPO } from '@/lib/links';
 import { openTutorial } from '@/studio/playback';
 import { installApp, usePwa } from '@/studio/pwa';
-import { openDialog, setViewMode, useStudio, type ViewMode } from '@/studio/store';
+import {
+  openDialog,
+  setStudioTheme,
+  setViewMode,
+  STUDIO_THEMES,
+  useStudio,
+  type ViewMode,
+} from '@/studio/store';
 
 import { LegalLinks } from './legal-links';
 import { plainLabel } from './panel-tabs';
@@ -87,6 +95,7 @@ const LanguageMenu = () => {
 
 export const SettingsPanel = () => {
   const { t } = useTranslation();
+  const theme = useStudio((state) => state.theme);
   const viewMode = useStudio((state) => state.viewMode);
   const installed = usePwa((state) => state.installed);
   const desktop = useLayoutMode() === 'desktop';
@@ -97,6 +106,15 @@ export const SettingsPanel = () => {
       <ScrollArea className="flex-1">
         <Row label={plainLabel(t('label_lang'))}>
           <LanguageMenu />
+        </Row>
+        <Row label={t('label_theme')}>
+          <OptionSelect
+            label={t('label_theme')}
+            value={theme}
+            options={STUDIO_THEMES.map((value) => ({ value, label: t(`theme_${value}`) }))}
+            onValueChange={setStudioTheme}
+            className="w-auto min-w-28"
+          />
         </Row>
         <Row label={t('settings_view_mode')}>
           <ToggleGroup

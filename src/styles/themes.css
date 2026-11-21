@@ -1,0 +1,100 @@
+:root[data-theme]:not([data-theme='default']) {
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --secondary-foreground: var(--foreground);
+  --solid-foreground: var(--foreground);
+  --accent-foreground: var(--foreground);
+  --attention-foreground: var(--primary-foreground);
+  --input: var(--solid);
+  --ring: var(--attention);
+  --glass: color-mix(in srgb, var(--secondary) 90%, transparent);
+  --glass-subtle: color-mix(in srgb, var(--secondary) 84%, transparent);
+}
+
+:root[data-theme='midnight'] {
+  --background: #14191f;
+  --foreground: #e0e7ee;
+  --card: #1a212a;
+  --primary: #bfd3e6;
+  --primary-foreground: #192a3b;
+  --secondary: #1a212a;
+  --solid: #222d39;
+  --muted: #1e2935;
+  --muted-foreground: #aebdcd;
+  --faint-foreground: #8092a6;
+  --accent: #2b4055;
+  --attention: #7e9fbd;
+  --border: #354354;
+  --stage: #14191f;
+}
+
+:root[data-theme='forest'] {
+  --background: #141b18;
+  --foreground: #e0e9e2;
+  --card: #1b2520;
+  --primary: #c0d7c4;
+  --primary-foreground: #1d2d22;
+  --secondary: #1b2520;
+  --solid: #26332c;
+  --muted: #202f25;
+  --muted-foreground: #aebeb2;
+  --faint-foreground: #809888;
+  --accent: #2e4434;
+  --attention: #7da086;
+  --border: #3b4d42;
+  --stage: #141b18;
+}
+
+:root[data-theme='burgundy'] {
+  --background: #1d1518;
+  --foreground: #eee0e5;
+  --card: #271d22;
+  --primary: #e3c2cd;
+  --primary-foreground: #361c26;
+  --secondary: #271d22;
+  --solid: #36272e;
+  --muted: #302229;
+  --muted-foreground: #c6aeb8;
+  --faint-foreground: #a08793;
+  --accent: #4a2d39;
+  --attention: #b18597;
+  --border: #503b45;
+  --stage: #1d1518;
+}
+
+:root[data-theme='amber'] {
+  --background: #1c1912;
+  --foreground: #ece7da;
+  --card: #252117;
+  --primary: #dfd0a6;
+  --primary-foreground: #302814;
+  --secondary: #252117;
+  --solid: #332e20;
+  --muted: #2e291c;
+  --muted-foreground: #c4bba5;
+  --faint-foreground: #9c927b;
+  --accent: #483d22;
+  --attention: #ad985e;
+  --border: #4b4430;
+  --stage: #1c1912;
+}
+
+:root[data-theme='paper'] {
+  color-scheme: light;
+  --background: #f1f1ed;
+  --foreground: #252921;
+  --card: #fafaf7;
+  --primary: #34472e;
+  --primary-foreground: #ffffff;
+  --secondary: #fafaf7;
+  --solid: #e9eae4;
+  --muted: #edeee8;
+  --muted-foreground: #51594a;
+  --faint-foreground: #68735f;
+  --accent: #dfe7d8;
+  --attention: #34472e;
+  --border: #c7cbc0;
+  --stage: #f1f1ed;
+  --destructive: #a9433b;
+}

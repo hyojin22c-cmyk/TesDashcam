@@ -4,6 +4,7 @@
 @import 'tw-animate-css';
 @import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 @import './tutorial.css';
+@import './themes.css';
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant data-horizontal (&[data-orientation='horizontal']);
@@ -46,6 +47,7 @@
   --accent: var(--palette-light-alpha-100);
   --accent-foreground: #ffffff;
   --attention: var(--palette-blue-500);
+  --attention-foreground: var(--foreground);
   --destructive: var(--palette-red-400);
   --border: var(--palette-light-alpha-100);
   --input: var(--palette-blue-200);
@@ -76,6 +78,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-attention: var(--attention);
+  --color-attention-foreground: var(--attention-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);

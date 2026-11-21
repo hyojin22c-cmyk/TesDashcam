@@ -8,9 +8,11 @@ import { Toaster } from '@/components/molecules/sonner';
 import { TooltipProvider } from '@/components/molecules/tooltip';
 import { StudioPage } from '@/components/pages/studio-page';
 import { watchLayoutMode } from '@/studio/layout-mode';
+import { applyStudioTheme } from '@/studio/store';
 
 const root = document.getElementById('app');
 if (root) {
+  applyStudioTheme();
   watchLayoutMode();
   createRoot(root).render(
     <StrictMode>

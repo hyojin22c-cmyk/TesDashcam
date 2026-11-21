@@ -10,7 +10,7 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: 'bg-accent text-muted-foreground',
-        attention: 'bg-attention text-foreground',
+        attention: 'bg-attention text-attention-foreground',
       },
     },
     defaultVariants: {
