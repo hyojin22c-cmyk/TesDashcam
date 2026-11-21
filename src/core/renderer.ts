@@ -3,12 +3,11 @@ import { drawQRCode } from './qr-code';
 import { correctRearFrame } from './rear-correction';
 import { drawStudioTelemetry } from './studio-telemetry';
 import {
+  type CardPalette,
   computeModernTelemetryBoxes,
+  DEFAULT_CARD_PALETTE,
   driveModeLabel,
   drawModernTelemetry,
-  getCardOrder,
-  MODERN_HUD_BACKGROUND,
-  type TELEMETRY_CARDS,
   TELEMETRY_KEYS,
   type TelemetryStyle,
 } from './telemetry-style';
@@ -37,8 +36,7 @@ export interface RenderOptions {
   playbackSpeed: number;
   exportSpeed?: number;
   telemetryStyle?: TelemetryStyle;
-  cardAccent?: string;
-  telemetryCardOrder?: (typeof TELEMETRY_CARDS)[number][];
+  cardPalette?: CardPalette;
   newDriveModeLabels?: boolean;
   telemetryOrder?: string[];
   draggingCol?: string | null;
@@ -224,7 +222,6 @@ export class OverlayRenderer {
     frameIdx: number,
     fps = 36.0,
     scale = 1.0,
-    separation = 0,
   ): void {
     const isBlinkPhase = Math.floor((frameIdx / fps) * 3.5) % 2 === 0;
     const lActive = leftOn && isBlinkPhase;
@@ -236,13 +233,13 @@ export class OverlayRenderer {
     const rEdge = rActive ? '#c8ffd2' : '#444c5a';
 
     const thick = Math.max(1, Math.round(1.8 * scale));
-    const lTipX = cx - separation - Math.round(48 * scale);
-    const lHeadX = cx - separation - Math.round(22 * scale);
-    const lStemEndX = cx - separation - Math.round(8 * scale);
+    const lTipX = cx - Math.round(48 * scale);
+    const lHeadX = cx - Math.round(22 * scale);
+    const lStemEndX = cx - Math.round(8 * scale);
 
-    const rTipX = cx + separation + Math.round(48 * scale);
-    const rHeadX = cx + separation + Math.round(22 * scale);
-    const rStemEndX = cx + separation + Math.round(8 * scale);
+    const rTipX = cx + Math.round(48 * scale);
+    const rHeadX = cx + Math.round(22 * scale);
+    const rStemEndX = cx + Math.round(8 * scale);
 
     const headY = Math.round(17 * scale);
     const stemY = Math.round(7 * scale);
@@ -356,9 +353,8 @@ export class OverlayRenderer {
 
     const modern = options.telemetryStyle === 'cards' || options.telemetryStyle === 'strip';
     const defaults = modern
-      ? ['timestamp', 'speed', 'steering', 'turn_signal', 'pedal', 'fsd']
+      ? ['speed', ...TELEMETRY_KEYS.filter((key) => key !== 'speed')]
       : TELEMETRY_KEYS;
-    const cardOrder = getCardOrder(options);
     const order = [...new Set([...(options.telemetryOrder ?? []), ...defaults])];
     const activeCols = order
       .filter((k) => Object.hasOwn(COL_WIDTH_BASE, k) && options[k as keyof RenderOptions])
@@ -432,8 +428,7 @@ export class OverlayRenderer {
           colsAvailW,
           bottomH,
           scale,
-          options,
-          cardOrder,
+          options.telemetryStyle === 'strip',
         )
       : Object.entries(colBoxMap).map(([key, [x, width]]) => ({
           key,
@@ -443,7 +438,7 @@ export class OverlayRenderer {
           height: bottomH,
         }));
     return {
-      order: options.telemetryStyle === 'cards' ? cardOrder : order,
+      order,
       boxes,
       colBoxMap,
       fsdDividers,
@@ -702,7 +697,14 @@ export class OverlayRenderer {
       grad.addColorStop(1, '#0a0c10');
       const style = options.telemetryStyle;
       const modern = style === 'cards' || style === 'strip';
-      ctx.fillStyle = modern ? MODERN_HUD_BACKGROUND : style === 'studio' ? '#000' : grad;
+      ctx.fillStyle =
+        style === 'studio'
+          ? '#000'
+          : style === 'cards'
+            ? (options.cardPalette ?? DEFAULT_CARD_PALETTE).background
+            : style === 'strip'
+              ? '#112326'
+              : grad;
       ctx.fillRect(0, hudY, hudW, bottomH);
 
       if (!style || style === 'classic') {
@@ -760,7 +762,7 @@ export class OverlayRenderer {
           options,
           scale,
           (x, y, angle, size) => this.drawRotatedSteering(ctx, x, y, angle, scale, size / scale),
-          (x, y, signalScale, separation) =>
+          (x, y, signalScale) =>
             this.drawTurnSignals(
               ctx,
               x,
@@ -770,7 +772,6 @@ export class OverlayRenderer {
               frameIdx,
               fps,
               signalScale,
-              separation,
             ),
         );
       } else if (style === 'studio') {

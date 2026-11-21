@@ -143,19 +143,12 @@ export const PlayerViewport = ({ className }: { className?: string }) => {
       setCursor('grabbing');
     },
     onDrag: ({ first, last, xy: [x, y] }) => {
-      const { draggingCol, telemetryStyle } = getStudio().options;
-      if (first || last || !draggingCol || telemetryStyle === 'cards' || telemetryStyle === 'strip')
-        return;
+      if (first || last || !getStudio().options.draggingCol) return;
       const point = toCanvasPoint(x, y);
       if (point) dragTelemetryColumn(point.cx, point.cy);
     },
-    onDragEnd: ({ canceled, event, xy: [x, y] }) => {
-      const { draggingCol, telemetryStyle } = getStudio().options;
-      if (draggingCol) {
-        if (!canceled && (telemetryStyle === 'cards' || telemetryStyle === 'strip')) {
-          const point = toCanvasPoint(x, y);
-          if (point) dragTelemetryColumn(point.cx, point.cy);
-        }
+    onDragEnd: ({ event, xy: [x, y] }) => {
+      if (getStudio().options.draggingCol) {
         setDraggingColumn(null);
         setCursor('default');
       }

@@ -26,36 +26,21 @@ export const driveModeLabel = (key: string, label: string, useNewLabels?: boolea
 
 export const TELEMETRY_FONT = '"Pretendard Variable", Pretendard, system-ui, sans-serif';
 
-export const MODERN_HUD_BACKGROUND = '#191b1e';
-export const DEFAULT_CARD_ACCENT = '#91b6ff';
-export const TELEMETRY_CARDS = ['drive', 'controls', 'mode'] as const;
-type Card = (typeof TELEMETRY_CARDS)[number];
-
-const CARD_FIELDS: Record<Card, readonly string[]> = {
-  drive: ['speed', 'timestamp'],
-  controls: ['steering', 'turn_signal', 'pedal'],
-  mode: ['fsd'],
-};
-const WEIGHTS: Record<string, number> = {
-  timestamp: 230,
-  speed: 230,
-  steering: 180,
-  turn_signal: 150,
-  pedal: 250,
-  fsd: 260,
-  drive: 30,
-  controls: 40,
-  mode: 30,
+export const DEFAULT_CARD_PALETTE = {
+  background: '#2a2a2b',
+  surface: '#353536',
+  speedCard: '#293555',
+  text: '#ffffff',
+  muted: '#c2c2c2',
+  accent: '#226cff',
+  track: '#555556',
 };
 
-export const getCardOrder = (options: RenderOptions) => {
-  const inherited = options.telemetryOrder?.flatMap((field) =>
-    TELEMETRY_CARDS.filter((card) => CARD_FIELDS[card].includes(field)),
-  );
-  return [...new Set([...(options.telemetryCardOrder ?? inherited ?? []), ...TELEMETRY_CARDS])];
-};
+export type CardPalette = typeof DEFAULT_CARD_PALETTE;
 
 type TelemetryBox = { key: string; x: number; y: number; width: number; height: number };
+
+const CARD_WEIGHTS = [366, 314, 252, 246, 366, 346];
 
 export const computeModernTelemetryBoxes = (
   keys: string[],
@@ -64,25 +49,48 @@ export const computeModernTelemetryBoxes = (
   width: number,
   height: number,
   scale: number,
-  options: RenderOptions,
-  cardOrder: Card[],
+  strip: boolean,
 ): TelemetryBox[] => {
-  const cards = options.telemetryStyle === 'cards';
-  const visible = cards
-    ? cardOrder.filter((card) => CARD_FIELDS[card].some((field) => keys.includes(field)))
-    : keys;
   const inset = 12 * scale;
-  const gap = cards ? 10 * scale : 0;
-  const available = width - inset * 2 - gap * (visible.length - 1);
-  const totalWeight = visible.reduce((sum, key) => sum + WEIGHTS[key], 0);
   x += inset;
-  return visible.map((key) => {
-    const boxWidth = (available * WEIGHTS[key]) / totalWeight;
-    const box = { key, x, y: y + inset, width: boxWidth, height: height - inset * 2 };
-    x += boxWidth + gap;
+  y += inset;
+  width -= inset * 2;
+  height -= inset * 2;
+  if (strip) {
+    const secondary = keys.length > 2;
+    const primaryWidth = width / (secondary ? 4 : Math.max(1, keys.length));
+    const secondaryWidth = (width - primaryWidth * 2) / (keys.length === 3 ? 1 : 2);
+    return keys.map((key, index) => {
+      if (index < 2) return { key, x: x + index * primaryWidth, y, width: primaryWidth, height };
+      return {
+        key,
+        x: x + primaryWidth * 2 + ((index - 2) % 2) * secondaryWidth,
+        y: y + (Math.floor((index - 2) / 2) * height) / 2,
+        width: index === 4 && keys.length === 5 ? secondaryWidth * 2 : secondaryWidth,
+        height: index < 4 && keys.length <= 4 ? height : height / 2,
+      };
+    });
+  }
+
+  const gap = 10 * scale;
+  const available = width - gap * (keys.length - 1);
+  const totalWeight = CARD_WEIGHTS.slice(0, keys.length).reduce((sum, weight) => sum + weight, 0);
+  return keys.map((key, index) => {
+    const cardWidth = (available * CARD_WEIGHTS[index]) / totalWeight;
+    const box = { key, x, y, width: cardWidth, height };
+    x += cardWidth + gap;
     return box;
   });
 };
+
+const LABELS = {
+  speed: 'hud_speed',
+  timestamp: 'hud_time',
+  steering: 'hud_steering',
+  turn_signal: 'hud_blinker',
+  pedal: 'hud_pedals',
+  fsd: 'hud_drive_mode',
+} as const;
 
 const timestampParts = (base: string, seconds: number) => {
   const date = new Date(base.replace(' ', 'T'));
@@ -104,190 +112,159 @@ export const drawModernTelemetry = (
   options: RenderOptions,
   scale: number,
   drawWheel: (x: number, y: number, angle: number, size: number) => void,
-  drawSignals: (x: number, y: number, scale: number, separation?: number) => void,
+  drawSignals: (x: number, y: number, scale: number) => void,
 ) => {
   const cards = options.telemetryStyle === 'cards';
   const present = telemetry !== DEFAULT_TELEMETRY;
-  const speed =
-    present && Number.isFinite(telemetry.speed_kmh) ? String(Math.round(telemetry.speed_kmh)) : '—';
-  const hasAngle = present && Number.isFinite(telemetry.steering_deg);
+  const number = (value: number, suffix = '') =>
+    present && Number.isFinite(value) ? `${Math.round(value)}${suffix}` : '—';
   const [date, time] = timestampParts(baseDate, seconds);
   const mode = telemetry.ap_mode === 'FSD ACTIVE' ? 'FSD' : telemetry.ap_mode;
-  const hasBrake =
-    present &&
-    (typeof telemetry.brake_applied === 'boolean' || Number.isFinite(telemetry.brake_pct));
-  const braking = hasBrake && (telemetry.brake_applied || telemetry.brake_pct > 0);
-  const accel =
-    present && Number.isFinite(telemetry.accel_pct) ? Math.round(telemetry.accel_pct) : null;
-  const fg = '#f0f1ee';
-  const muted = '#b6babd';
-  const accent = cards ? (options.cardAccent ?? DEFAULT_CARD_ACCENT) : fg;
-
-  const setFont = (size: number, bold = false) => {
-    ctx.font = `${bold ? 700 : 500} ${size}px ${TELEMETRY_FONT}`;
-  };
-
-  const text = (
+  const braking = telemetry.brake_applied || telemetry.brake_pct > 0;
+  const palette = options.cardPalette ?? DEFAULT_CARD_PALETTE;
+  const text = '#f0f5ec';
+  const muted = cards ? palette.muted : '#acceca';
+  const fg = cards ? palette.text : text;
+  const accent = cards ? palette.accent : '#79efd5';
+  const renderText = (
     value: string,
-    center: number,
+    x: number,
     y: number,
     width: number,
     size: number,
-    color = fg,
+    color: string,
     bold = false,
+    numeric = false,
   ) => {
-    setFont(size * scale, bold);
-    const measured = ctx.measureText(value).width;
-    if (measured > width) setFont((size * scale * width) / measured, bold);
+    ctx.font = `${bold ? 700 : 500} ${size * scale}px ${cards ? TELEMETRY_FONT : numeric ? 'monospace' : 'sans-serif'}`;
     ctx.fillStyle = color;
-    ctx.fillText(value, center, y);
-  };
-
-  const speedValue = (center: number, y: number, width: number, size: number) => {
-    setFont(20 * scale);
-    const unit = 'km/h';
-    const unitWidth = ctx.measureText(unit).width;
-    setFont(size * scale, true);
-    const gap = 6 * scale;
-    const numberSize = Math.min(
-      size * scale,
-      (size * scale * (width - unitWidth - gap)) / ctx.measureText(speed).width,
-    );
-    setFont(numberSize, true);
-    const numberWidth = ctx.measureText(speed).width;
-    const left = center - (numberWidth + gap + unitWidth) / 2;
-    ctx.fillStyle = accent;
-    ctx.fillText(speed, left + numberWidth / 2, y);
-    ctx.font = `500 ${20 * scale}px ${TELEMETRY_FONT}`;
-    ctx.fillStyle = muted;
-    ctx.fillText(unit, left + numberWidth + gap + unitWidth / 2, y + 7 * scale);
-  };
-
-  const timeValue = (center: number, y: number, width: number, compact = false) => {
-    text(date, center, y - (compact ? 23 : 30) * scale, width, 17, muted);
-    text(time, center, y, width, compact ? 27 : 34, fg, true);
-  };
-
-  const steering = (center: number, y: number, width: number, indicators: boolean) => {
-    const size = Math.min(43 * scale, width * (indicators ? 0.23 : 0.4));
-    if (indicators) {
-      const separation = options.steering ? size / 2 + 9 * scale : 0;
-      drawSignals(center, y, Math.min(scale, (width / 2 - separation) / 50), separation);
-    }
-    if (!options.steering) return;
-    if (hasAngle) drawWheel(center, y, telemetry.steering_deg, size);
-    text(
-      hasAngle ? `${Math.round(telemetry.steering_deg)}°` : '—',
-      center,
-      y + 33 * scale,
-      width,
-      19,
-    );
-  };
-
-  const pedals = (center: number, y: number, width: number) => {
-    const half = width / 2;
-    const accelX = center - width / 4;
-    const brakeX = center + width / 4;
-    text(i18n.t('hud_accel'), accelX, y - 18 * scale, half, 17, muted);
-    text(i18n.t('hud_brake'), brakeX, y - 18 * scale, half, 17, muted);
-    text(accel === null ? '—' : `${accel}%`, accelX, y + 4 * scale, half, 23, fg, true);
-    text(
-      hasBrake ? (braking ? 'ON' : 'OFF') : '—',
-      brakeX,
-      y + 4 * scale,
-      half,
-      23,
-      braking ? '#ff7770' : fg,
-      true,
-    );
-    if (cards && accel !== null) {
-      const trackWidth = half * 0.65;
-      ctx.fillStyle = '#494d51';
-      ctx.fillRect(accelX - trackWidth / 2, y + 23 * scale, trackWidth, 4 * scale);
-      ctx.fillStyle = accent;
-      ctx.fillRect(
-        accelX - trackWidth / 2,
-        y + 23 * scale,
-        (trackWidth * Math.max(0, Math.min(accel, 100))) / 100,
-        4 * scale,
-      );
-    }
-  };
-
-  const driveMode = (center: number, y: number, width: number) => {
-    text(i18n.t('hud_drive_mode'), center, y - 30 * scale, width, 18, muted);
-    text(
-      present && mode ? driveModeLabel(mode, mode, options.newDriveModeLabels) : '—',
-      center,
-      y,
-      width,
-      26,
-      fg,
-      true,
-    );
+    ctx.fillText(value, x, y, width);
   };
 
   ctx.save();
-  ctx.textAlign = 'center';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   boxes.forEach(({ key, x, y, width, height }, index) => {
-    const center = x + width / 2;
-    const middle = y + height / 2;
-    const valueY = middle + 8 * scale;
-    const usable = width - 20 * scale;
+    const large = cards || index < 2;
+    const padding = Math.min(20 * scale, width * 0.075);
+    const left = x + padding;
+    const usable = width - padding * 2;
+    const titleY = y + (large ? 31 : 19) * scale;
+    const valueY = y + (large ? 99 : 50) * scale;
     if (cards || options.draggingCol === key) {
-      ctx.fillStyle = cards ? '#25282b' : '#33373b';
+      ctx.fillStyle = cards ? (key === 'speed' ? palette.speedCard : palette.surface) : '#294345';
       ctx.beginPath();
-      ctx.roundRect(x, y, width, height, 10 * scale);
+      ctx.roundRect(x, y, width, height, 16 * scale);
       ctx.fill();
-      if (options.draggingCol === key) {
-        ctx.strokeStyle = muted;
-        ctx.lineWidth = 2 * scale;
+      if (cards && options.draggingCol === key) {
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 3 * scale;
         ctx.stroke();
       }
     } else if (index > 0) {
-      ctx.fillStyle = '#42464a';
-      ctx.fillRect(x, y + 25 * scale, Math.max(1, scale), height - 50 * scale);
+      ctx.fillStyle = '#48605f';
+      if (index >= 4) ctx.fillRect(x + padding, y, usable, scale);
+      else ctx.fillRect(x, y + 4 * scale, scale, height - 8 * scale);
     }
-
+    renderText(
+      i18n.t(LABELS[key as keyof typeof LABELS]),
+      left,
+      titleY,
+      usable,
+      large ? 23 : 17,
+      muted,
+    );
     switch (key) {
-      case 'drive': {
-        const both = options.speed && options.timestamp;
-        if (options.speed) speedValue(center, both ? middle - 27 * scale : middle, usable, 56);
-        if (options.timestamp) timeValue(center, both ? middle + 46 * scale : valueY, usable, both);
+      case 'speed': {
+        const unit = Math.min(74 * scale, usable * 0.34);
+        renderText(
+          number(telemetry.speed_kmh),
+          left,
+          valueY,
+          usable - unit,
+          cards ? 76 : large ? 92 : 37,
+          fg,
+          true,
+          true,
+        );
+        renderText(
+          'km/h',
+          left + usable - unit,
+          valueY + (large ? 12 : 4) * scale,
+          unit,
+          large ? 27 : 16,
+          muted,
+        );
         break;
       }
-      case 'controls': {
-        const hasIcons = options.steering || options.turn_signal;
-        if (hasIcons)
-          steering(
-            center,
-            options.pedal ? middle - 38 * scale : middle - (options.steering ? 13 : 0) * scale,
-            usable,
-            options.turn_signal,
-          );
-        if (options.pedal) pedals(center, hasIcons ? middle + 43 * scale : valueY, usable);
-        break;
-      }
-      case 'speed':
-        speedValue(center, valueY, usable, 51);
-        break;
       case 'timestamp':
-        timeValue(center, valueY, usable);
+        renderText(
+          time,
+          left,
+          valueY - 10 * scale,
+          usable,
+          cards ? 49 : large ? 63 : 31,
+          fg,
+          true,
+          true,
+        );
+        renderText(
+          date,
+          left,
+          y + (large ? 134 : 63) * scale,
+          usable,
+          large ? 20 : 13,
+          muted,
+          false,
+          true,
+        );
         break;
-      case 'steering':
-        steering(center, valueY - 16 * scale, usable, false);
+      case 'steering': {
+        const size = present ? Math.min((large ? 68 : 36) * scale, usable * 0.42) : 0;
+        if (size) drawWheel(left + size / 2, valueY, telemetry.steering_deg, size);
+        const gap = size ? size + 8 * scale : 0;
+        renderText(
+          number(telemetry.steering_deg, '°'),
+          left + gap,
+          valueY,
+          usable - gap,
+          large ? 40 : 28,
+          fg,
+          true,
+        );
         break;
+      }
       case 'turn_signal':
-        drawSignals(center, valueY, Math.min(scale, usable / 100));
+        drawSignals(x + width / 2, valueY, Math.min((large ? 1 : 0.78) * scale, usable / 100));
         break;
-      case 'pedal':
-        pedals(center, valueY, usable);
+      case 'pedal': {
+        const values = present
+          ? `${number(telemetry.accel_pct, '%')} / ${braking ? 'ON' : 'OFF'}`
+          : '—';
+        renderText(values, left, valueY, usable, large ? 38 : 28, fg, true);
+        if (cards && present) {
+          ctx.fillStyle = palette.track;
+          ctx.fillRect(left, y + 131 * scale, usable, 5 * scale);
+          ctx.fillStyle = accent;
+          ctx.fillRect(
+            left,
+            y + 131 * scale,
+            (usable * Math.max(0, Math.min(100, telemetry.accel_pct))) / 100,
+            5 * scale,
+          );
+        }
         break;
-      case 'mode':
+      }
       case 'fsd':
-        driveMode(center, valueY, usable);
+        renderText(
+          present && mode ? driveModeLabel(mode, mode, options.newDriveModeLabels) : '—',
+          left,
+          valueY,
+          usable,
+          large ? 38 : 28,
+          fg,
+          true,
+        );
         break;
     }
   });
