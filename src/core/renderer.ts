@@ -2,6 +2,14 @@
 import { OpenStreetMapTileLoader } from './map-loader';
 import { drawQRCode } from './qr-code';
 import { correctRearFrame } from './rear-correction';
+import { drawStudioTelemetry } from './studio-telemetry';
+import {
+  type CardPalette,
+  computeModernTelemetryBoxes,
+  DEFAULT_CARD_PALETTE,
+  drawModernTelemetry,
+  type TelemetryStyle,
+} from './telemetry-style';
 
 import type { CameraKey } from './constants';
 import type { TelemetryData } from './sei-decoder';
@@ -26,6 +34,8 @@ export interface RenderOptions {
   contrast: number; // 0.5 ~ 2.0, default 1.0
   playbackSpeed: number;
   exportSpeed?: number;
+  telemetryStyle?: TelemetryStyle;
+  cardPalette?: CardPalette;
   telemetryOrder?: string[];
   draggingCol?: string | null;
 }
@@ -329,15 +339,22 @@ export class OverlayRenderer {
     const qrZoneW = options.qr ? qrPx + qrPadR + Math.round(18 * scale) : 0;
     const colsAvailW = Math.max(Math.round(200 * scale), availW - qrZoneW);
 
-    const rawOrder = options.telemetryOrder || DEFAULT_TELEMETRY_ORDER;
+    const modern = options.telemetryStyle === 'strip' || options.telemetryStyle === 'cards';
+    const defaults = modern
+      ? ['speed', ...DEFAULT_TELEMETRY_ORDER.filter((key) => key !== 'speed')]
+      : DEFAULT_TELEMETRY_ORDER;
+    const rawOrder = options.telemetryOrder ?? defaults;
     const order = rawOrder.filter((k) => k in COL_WIDTH_BASE);
-    for (const k of DEFAULT_TELEMETRY_ORDER) {
+    for (const k of defaults) {
       if (!order.includes(k)) order.push(k);
     }
 
     const activeCols = order
       .filter((k) => options[k as keyof RenderOptions])
-      .map((k) => [k, Math.round(COL_WIDTH_BASE[k] * scale)] as [string, number]);
+      .map((k) => {
+        const width = options.telemetryStyle === 'studio' && k === 'fsd' ? 232 : COL_WIDTH_BASE[k];
+        return [k, Math.round(width * scale)] as [string, number];
+      });
 
     const numActive = activeCols.length;
     const totalColW = activeCols.reduce((acc, [, w]) => acc + w, 0);
@@ -345,7 +362,7 @@ export class OverlayRenderer {
     const colBoxMap: Record<string, [number, number]> = {};
     const fsdDividers: number[] = [];
 
-    if (numActive > 0) {
+    if (!modern && numActive > 0) {
       const fsdIndices = activeCols.map(([k], i) => (k === 'fsd' ? i : -1)).filter((i) => i >= 0);
       let numDivs = 0;
       if (fsdIndices.length > 0 && numActive >= 2) {
@@ -399,8 +416,26 @@ export class OverlayRenderer {
       }
     }
 
+    const boxes = modern
+      ? computeModernTelemetryBoxes(
+          activeCols.map(([key]) => key),
+          offsetX,
+          frontH,
+          colsAvailW,
+          bottomH,
+          scale,
+          options.telemetryStyle === 'strip',
+        )
+      : Object.entries(colBoxMap).map(([key, [x, width]]) => ({
+          key,
+          x: offsetX + x,
+          y: frontH,
+          width,
+          height: bottomH,
+        }));
     return {
       order,
+      boxes,
       colBoxMap,
       fsdDividers,
       offsetX,
@@ -438,7 +473,7 @@ export class OverlayRenderer {
       ctx.filter = 'none';
     }
 
-    const { colBoxMap, fsdDividers, offsetX, frontH, bottomH, qrPx, qrPadR } =
+    const { boxes, colBoxMap, fsdDividers, offsetX, frontH, bottomH, qrPx, qrPadR } =
       this.computeTelemetryLayout(options, outW, outH);
     const rearCrop = options.rear_crop ? REAR_BOTTOM_CROP : 0;
     const hasBottomHud = bottomH > 0;
@@ -652,16 +687,27 @@ export class OverlayRenderer {
       const grad = ctx.createLinearGradient(0, hudY, 0, outH);
       grad.addColorStop(0, '#11151c');
       grad.addColorStop(1, '#0a0c10');
-      ctx.fillStyle = grad;
+      const style = options.telemetryStyle;
+      const modern = style === 'cards' || style === 'strip';
+      ctx.fillStyle =
+        style === 'studio'
+          ? '#000'
+          : style === 'cards'
+            ? (options.cardPalette ?? DEFAULT_CARD_PALETTE).background
+            : style === 'strip'
+              ? '#112326'
+              : grad;
       ctx.fillRect(0, hudY, hudW, bottomH);
 
-      // Top separator line
-      ctx.strokeStyle = '#3a3228';
-      ctx.lineWidth = Math.max(1, Math.round(1.5 * scale));
-      ctx.beginPath();
-      ctx.moveTo(0, hudY);
-      ctx.lineTo(outW, hudY);
-      ctx.stroke();
+      if (!style || style === 'classic') {
+        // Top separator line
+        ctx.strokeStyle = '#3a3228';
+        ctx.lineWidth = Math.max(1, Math.round(1.5 * scale));
+        ctx.beginPath();
+        ctx.moveTo(0, hudY);
+        ctx.lineTo(outW, hudY);
+        ctx.stroke();
+      }
 
       // OpenStreetMap Minimap
       if (options.map && mapW > 0) {
@@ -684,376 +730,429 @@ export class OverlayRenderer {
         ctx.stroke();
       }
 
-      // Vertical alignment grid constants
-      const hdrY = hudY + Math.round(16 * scale);
-      const iconCenterY = hudY + Math.round(103 * scale);
-
-      // Draw Header Dots and Titles
-      const headerMeta: Record<string, [string, string]> = {
-        speed: ['SPEED', '#ffc800'],
-        pedal: ['PEDALS', '#82eb50'],
-        steering: ['STEERING', '#ffd700'],
-        turn_signal: ['BLINKER', '#78f03c'],
-        timestamp: ['TIME', '#00e6ff'],
-      };
-
-      const dotR = Math.max(3, Math.round(4.2 * scale));
-
-      for (const [k, [cx1]] of Object.entries(colBoxMap)) {
-        if (k === 'fsd') continue;
-        const [titleTxt, dotColor] = headerMeta[k] || [k.toUpperCase(), '#ffd700'];
-        const dotCx = offsetX + cx1 + dotR;
-        const dotCy = hdrY + Math.round(6 * scale);
-
+      if (options.map && style && style !== 'classic') {
         ctx.save();
-        ctx.fillStyle = dotColor;
-        ctx.beginPath();
-        ctx.arc(dotCx, dotCy, dotR, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#ded4ca';
-        ctx.font = `bold ${Math.round(16 * scale)}px sans-serif`;
+        ctx.font = `600 ${12 * scale}px sans-serif`;
         ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(titleTxt, dotCx + Math.round(9 * scale), dotCy);
+        ctx.textBaseline = 'bottom';
+        const attribution = '© OpenStreetMap contributors';
+        const labelW = ctx.measureText(attribution).width + 12 * scale;
+        ctx.fillStyle = '#11151c';
+        ctx.fillRect(0, outH - 19 * scale, labelW, 19 * scale);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(attribution, 6 * scale, outH - 3 * scale);
         ctx.restore();
       }
 
-      // FSD Dividers
-      ctx.strokeStyle = '#483c32';
-      ctx.lineWidth = Math.max(1, Math.round(1.5 * scale));
-      const divY1 = hudY + Math.round(16 * scale);
-      const divY2 = outH - Math.round(24 * scale);
-      for (const divX of fsdDividers) {
-        ctx.beginPath();
-        ctx.moveTo(offsetX + divX, divY1);
-        ctx.lineTo(offsetX + divX, divY2);
-        ctx.stroke();
-      }
-
-      // Highlight Dragging Column in Preview
-      if (options.draggingCol && colBoxMap[options.draggingCol]) {
-        const [dcx1, dcw] = colBoxMap[options.draggingCol];
-        const padHl = Math.round(8 * scale);
-        ctx.save();
-        ctx.strokeStyle = '#ffd700';
-        ctx.lineWidth = Math.max(1, Math.round(2 * scale));
-        ctx.beginPath();
-        ctx.roundRect(
-          offsetX + Math.max(2, dcx1 - padHl),
-          hudY + Math.round(8 * scale),
-          dcw + padHl * 2,
-          bottomH - Math.round(18 * scale),
-          Math.round(8 * scale),
-        );
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // 1. TIME Column (날짜 옐로우/골드 + 수평 분리선 + 큰 시각 화이트)
-      if ('timestamp' in colBoxMap) {
-        const [cx1] = colBoxMap.timestamp;
-        const tPosX = offsetX + cx1;
-
-        // Calculate accurate date/time using baseDateStr + currentTimeSec
-        let dateStr = baseDateStr;
-        let timeStr = '00:00:00';
-        try {
-          const parts = baseDateStr.split(' ');
-          const datePart = parts[0] || '2026-10-07';
-          const timePart = parts[1] || '00:00:00';
-          const [yy, mo, dd] = datePart.split('-').map(Number);
-          const [hh, mi, ss] = timePart.split(':').map(Number);
-          const d = new Date(yy, (mo || 1) - 1, dd || 1, hh || 0, mi || 0, ss || 0);
-          d.setSeconds(d.getSeconds() + currentTimeSec);
-
-          dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-        } catch {
-          dateStr = baseDateStr;
-        }
-
-        ctx.save();
-        // Date text
-        ctx.fillStyle = '#f5ca73';
-        ctx.font = `bold ${Math.round(21 * scale)}px sans-serif`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText(dateStr, tPosX, hudY + Math.round(52 * scale));
-
-        // Horizontal separator line
-        ctx.strokeStyle = '#423830';
-        ctx.lineWidth = Math.max(1, Math.round(1.2 * scale));
-        ctx.beginPath();
-        ctx.moveTo(tPosX, hudY + Math.round(84 * scale));
-        ctx.lineTo(tPosX + Math.round(155 * scale), hudY + Math.round(84 * scale));
-        ctx.stroke();
-
-        // Time text (Large, white, bold)
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `bold ${Math.round(33 * scale)}px monospace`;
-        ctx.fillText(timeStr, tPosX, hudY + Math.round(94 * scale));
-
-        // OpenStreetMap credit (time 밑 빈공간에 배경 박스 없이 옅은 회색으로 은은하게 텍스트만 배치)
-        if (options.map) {
-          ctx.fillStyle = 'rgba(165, 172, 182, 0.55)';
-          ctx.font = `${Math.round(11 * scale)}px sans-serif`;
-          ctx.fillText('Map: OpenStreetMap', tPosX, hudY + Math.round(145 * scale));
-        }
-        ctx.restore();
-      }
-
-      // 2. STEERING Column (중앙 정렬 휠 회전 이미지)
-      if ('steering' in colBoxMap) {
-        const [cx1] = colBoxMap.steering;
-        const xWheel = offsetX + cx1 + Math.round(52 * scale);
-        this.drawRotatedSteering(ctx, xWheel, iconCenterY, telemetry.steering_deg, scale, 96);
-      }
-
-      // 3. BLINKER Column (좌우 깜빡이 화살표)
-      if ('turn_signal' in colBoxMap) {
-        const [cx1] = colBoxMap.turn_signal;
-        const xBlinker = offsetX + cx1 + Math.round(52 * scale);
-        this.drawTurnSignals(
+      if (modern) {
+        drawModernTelemetry(
           ctx,
-          xBlinker,
-          iconCenterY,
-          telemetry.left_blinker,
-          telemetry.right_blinker,
+          boxes,
+          telemetry,
+          baseDateStr,
+          currentTimeSec,
+          options,
+          scale,
+          (x, y, angle, size) => this.drawRotatedSteering(ctx, x, y, angle, scale, size / scale),
+          (x, y, signalScale) =>
+            this.drawTurnSignals(
+              ctx,
+              x,
+              y,
+              telemetry.left_blinker,
+              telemetry.right_blinker,
+              frameIdx,
+              fps,
+              signalScale,
+            ),
+        );
+      } else if (style === 'studio') {
+        drawStudioTelemetry(
+          ctx,
+          colBoxMap,
+          offsetX,
+          hudY,
+          bottomH,
+          scale,
+          telemetry,
+          baseDateStr,
+          currentTimeSec,
           frameIdx,
           fps,
-          scale * 0.96,
+          options,
         );
-      }
+      } else {
+        // Vertical alignment grid constants
+        const hdrY = hudY + Math.round(16 * scale);
+        const iconCenterY = hudY + Math.round(103 * scale);
 
-      // 4. SPEED Column (상단 프로그레스 바 + 노란색 숫자와 km/h)
-      if ('speed' in colBoxMap) {
-        const [cx1] = colBoxMap.speed;
-        const spdVal = Math.round(telemetry.speed_kmh);
-        const barX1 = offsetX + cx1;
-        const barW = Math.round(152 * scale);
-        const barH = Math.max(4, Math.round(7 * scale));
-        const barY1 = hudY + Math.round(62 * scale);
-        const barR = Math.max(2, Math.round(3.5 * scale));
+        // Draw Header Dots and Titles
+        const headerMeta: Record<string, [string, string]> = {
+          speed: ['SPEED', '#ffc800'],
+          pedal: ['PEDALS', '#82eb50'],
+          steering: ['STEERING', '#ffd700'],
+          turn_signal: ['BLINKER', '#78f03c'],
+          timestamp: ['TIME', '#00e6ff'],
+        };
 
-        ctx.save();
-        // Progress track
-        ctx.fillStyle = '#342922';
-        ctx.beginPath();
-        ctx.roundRect(barX1, barY1, barW, barH, barR);
-        ctx.fill();
+        const dotR = Math.max(3, Math.round(4.2 * scale));
 
-        // Progress fill (yellow)
-        const spdPct = Math.max(0, Math.min(1.0, spdVal / 150.0));
-        if (spdPct > 0.01) {
-          ctx.fillStyle = '#0ae4ff'; // yellow-gold in BGR is #ffe40a
-          ctx.fillStyle = '#ffe00a';
+        for (const [k, [cx1]] of Object.entries(colBoxMap)) {
+          if (k === 'fsd') continue;
+          const [titleTxt, dotColor] = headerMeta[k] || [k.toUpperCase(), '#ffd700'];
+          const dotCx = offsetX + cx1 + dotR;
+          const dotCy = hdrY + Math.round(6 * scale);
+
+          ctx.save();
+          ctx.fillStyle = dotColor;
           ctx.beginPath();
-          ctx.roundRect(barX1, barY1, Math.max(barR * 2, barW * spdPct), barH, barR);
+          ctx.arc(dotCx, dotCy, dotR, 0, Math.PI * 2);
           ctx.fill();
+
+          ctx.fillStyle = '#ded4ca';
+          ctx.font = `bold ${Math.round(16 * scale)}px sans-serif`;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(titleTxt, dotCx + Math.round(9 * scale), dotCy);
+          ctx.restore();
         }
 
-        // Speed Number & Unit
-        const spdStr = `${spdVal}`;
-        ctx.fillStyle = '#ffe00a';
-        ctx.font = `bold ${Math.round(48 * scale)}px sans-serif`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-        const numMetrics = ctx.measureText(spdStr);
-        const sW = numMetrics.width;
-
-        ctx.font = `600 ${Math.round(17 * scale)}px sans-serif`;
-        const uMetrics = ctx.measureText('km/h');
-        const uW = uMetrics.width;
-
-        const gapSu = Math.round(7 * scale);
-        const totalW = sW + gapSu + uW;
-        const startX = barX1 + Math.max(0, Math.round((barW - totalW) / 2));
-        const baselineY = hudY + Math.round(128 * scale);
-
-        // Draw Number
-        ctx.fillStyle = '#ffe00a';
-        ctx.font = `bold ${Math.round(48 * scale)}px sans-serif`;
-        ctx.fillText(spdStr, startX, baselineY);
-
-        // Draw Unit
-        ctx.fillStyle = '#d7cdc3';
-        ctx.font = `600 ${Math.round(17 * scale)}px sans-serif`;
-        ctx.fillText('km/h', startX + sW + gapSu, baselineY);
-        ctx.restore();
-      }
-
-      // 5. PEDALS Column (가속 세로 게이지 + ACC % / BRK ON/OFF)
-      if ('pedal' in colBoxMap) {
-        const [cx1] = colBoxMap.pedal;
-        const accPct = Math.min(100, Math.max(0, Math.round(telemetry.accel_pct)));
-        const brkOn = telemetry.brake_applied || telemetry.brake_pct > 0;
-
-        const barW = Math.round(22 * scale);
-        const by1 = hudY + Math.round(58 * scale);
-        const by2 = hudY + Math.round(138 * scale);
-        const barH = by2 - by1;
-        const bx1 = offsetX + cx1;
-        const bx2 = bx1 + barW;
-        const br = Math.max(4, Math.round(barW / 2));
-
-        ctx.save();
-        // Track
-        ctx.fillStyle = '#16120e';
-        ctx.strokeStyle = '#5f5246';
-        ctx.lineWidth = Math.max(1, Math.round(1.3 * scale));
-        ctx.beginPath();
-        ctx.roundRect(bx1, by1, barW, barH, br);
-        ctx.fill();
-        ctx.stroke();
-
-        // Ticks
-        for (const tFrac of [0.25, 0.5, 0.75]) {
-          const ty = Math.round(by1 + barH * tFrac);
-          ctx.strokeStyle = '#64584c';
+        // FSD Dividers
+        ctx.strokeStyle = '#483c32';
+        ctx.lineWidth = Math.max(1, Math.round(1.5 * scale));
+        const divY1 = hudY + Math.round(16 * scale);
+        const divY2 = outH - Math.round(24 * scale);
+        for (const divX of fsdDividers) {
           ctx.beginPath();
-          ctx.moveTo(bx2 + Math.round(2 * scale), ty);
-          ctx.lineTo(bx2 + Math.round(6 * scale), ty);
+          ctx.moveTo(offsetX + divX, divY1);
+          ctx.lineTo(offsetX + divX, divY2);
           ctx.stroke();
         }
 
-        // Accel fill (Green)
-        if (accPct > 0) {
-          const fh = Math.max(br * 2, Math.round((barH - 2) * (accPct / 100.0)));
-          const fy1 = Math.max(by1 + 1, by2 - fh);
-          ctx.fillStyle = '#6eeb00';
+        // Highlight Dragging Column in Preview
+        if (options.draggingCol && colBoxMap[options.draggingCol]) {
+          const [dcx1, dcw] = colBoxMap[options.draggingCol];
+          const padHl = Math.round(8 * scale);
+          ctx.save();
+          ctx.strokeStyle = '#ffd700';
+          ctx.lineWidth = Math.max(1, Math.round(2 * scale));
           ctx.beginPath();
-          ctx.roundRect(bx1 + 1, fy1, barW - 2, by2 - fy1 - 1, Math.max(2, br - 1));
-          ctx.fill();
+          ctx.roundRect(
+            offsetX + Math.max(2, dcx1 - padHl),
+            hudY + Math.round(8 * scale),
+            dcw + padHl * 2,
+            bottomH - Math.round(18 * scale),
+            Math.round(8 * scale),
+          );
+          ctx.stroke();
+          ctx.restore();
         }
 
-        // Labels
-        const accTx = bx2 + Math.round(10 * scale);
-        const brkX = offsetX + cx1 + Math.round(96 * scale);
+        // 1. TIME Column (날짜 옐로우/골드 + 수평 분리선 + 큰 시각 화이트)
+        if ('timestamp' in colBoxMap) {
+          const [cx1] = colBoxMap.timestamp;
+          const tPosX = offsetX + cx1;
 
-        ctx.fillStyle = '#d7cdc3';
-        ctx.font = `bold ${Math.round(14 * scale)}px sans-serif`;
-        ctx.fillText('ACC', accTx, by1 + Math.round(16 * scale));
-        ctx.fillText('BRK', brkX, by1 + Math.round(16 * scale));
+          // Calculate accurate date/time using baseDateStr + currentTimeSec
+          let dateStr = baseDateStr;
+          let timeStr = '00:00:00';
+          try {
+            const parts = baseDateStr.split(' ');
+            const datePart = parts[0] || '2026-10-07';
+            const timePart = parts[1] || '00:00:00';
+            const [yy, mo, dd] = datePart.split('-').map(Number);
+            const [hh, mi, ss] = timePart.split(':').map(Number);
+            const d = new Date(yy, (mo || 1) - 1, dd || 1, hh || 0, mi || 0, ss || 0);
+            d.setSeconds(d.getSeconds() + currentTimeSec);
 
-        // Accel % Text
-        const accStr = `${accPct}%`;
-        ctx.fillStyle = accPct > 0 ? '#96ff50' : '#a59b91';
-        ctx.font = `bold ${Math.round(19 * scale)}px sans-serif`;
-        ctx.fillText(accStr, accTx, by2 - Math.round(4 * scale));
+            dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+          } catch {
+            dateStr = baseDateStr;
+          }
 
-        // Brake Lamp Badge
-        const lampW = Math.round(64 * scale);
-        const lampH = Math.round(27 * scale);
-        const lampY1 = by2 - lampH;
-        const lampR = Math.max(4, Math.round(6 * scale));
+          ctx.save();
+          // Date text
+          ctx.fillStyle = '#f5ca73';
+          ctx.font = `bold ${Math.round(21 * scale)}px sans-serif`;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.fillText(dateStr, tPosX, hudY + Math.round(52 * scale));
 
-        ctx.fillStyle = brkOn ? '#381cc3' : '#1e1814';
-        ctx.strokeStyle = brkOn ? '#955aff' : '#4b4037';
-        ctx.lineWidth = Math.max(1, Math.round(1.3 * scale));
-        ctx.beginPath();
-        ctx.roundRect(brkX, lampY1, lampW, lampH, lampR);
-        ctx.fill();
-        ctx.stroke();
+          // Horizontal separator line
+          ctx.strokeStyle = '#423830';
+          ctx.lineWidth = Math.max(1, Math.round(1.2 * scale));
+          ctx.beginPath();
+          ctx.moveTo(tPosX, hudY + Math.round(84 * scale));
+          ctx.lineTo(tPosX + Math.round(155 * scale), hudY + Math.round(84 * scale));
+          ctx.stroke();
 
-        // Brake Dot & State Text
-        const ldR = Math.max(2, Math.round(4 * scale));
-        const ldCx = brkX + Math.round(14 * scale);
-        const ldCy = lampY1 + lampH / 2;
+          // Time text (Large, white, bold)
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${Math.round(33 * scale)}px monospace`;
+          ctx.fillText(timeStr, tPosX, hudY + Math.round(94 * scale));
 
-        ctx.fillStyle = brkOn ? '#8c8cff' : '#5a5048';
-        ctx.beginPath();
-        ctx.arc(ldCx, ldCy, ldR, 0, Math.PI * 2);
-        ctx.fill();
+          // OpenStreetMap credit (time 밑 빈공간에 배경 박스 없이 옅은 회색으로 은은하게 텍스트만 배치)
+          if (options.map) {
+            ctx.fillStyle = 'rgba(165, 172, 182, 0.55)';
+            ctx.font = `${Math.round(11 * scale)}px sans-serif`;
+            ctx.fillText('Map: OpenStreetMap', tPosX, hudY + Math.round(145 * scale));
+          }
+          ctx.restore();
+        }
 
-        ctx.fillStyle = brkOn ? '#ffffff' : '#9b9188';
-        ctx.font = `bold ${Math.round(14 * scale)}px sans-serif`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(brkOn ? 'ON' : 'OFF', ldCx + Math.round(8 * scale), ldCy);
-        ctx.restore();
-      }
+        // 2. STEERING Column (중앙 정렬 휠 회전 이미지)
+        if ('steering' in colBoxMap) {
+          const [cx1] = colBoxMap.steering;
+          const xWheel = offsetX + cx1 + Math.round(52 * scale);
+          this.drawRotatedSteering(ctx, xWheel, iconCenterY, telemetry.steering_deg, scale, 96);
+        }
 
-      // 6. FSD Mode Column (우측 끝 4단계 수직 목록)
-      if ('fsd' in colBoxMap) {
-        const [cx1] = colBoxMap.fsd;
-        const fsdX = offsetX + cx1;
-        const apRaw = telemetry.ap_mode || 'MANUAL';
-        const activeKey = apRaw === 'FSD ACTIVE' ? 'FSD' : apRaw;
+        // 3. BLINKER Column (좌우 깜빡이 화살표)
+        if ('turn_signal' in colBoxMap) {
+          const [cx1] = colBoxMap.turn_signal;
+          const xBlinker = offsetX + cx1 + Math.round(52 * scale);
+          this.drawTurnSignals(
+            ctx,
+            xBlinker,
+            iconCenterY,
+            telemetry.left_blinker,
+            telemetry.right_blinker,
+            frameIdx,
+            fps,
+            scale * 0.96,
+          );
+        }
 
-        const modesList = [
-          {
-            label: 'MANUAL',
-            key: 'MANUAL',
-            activeTxt: '#fcf8f8',
-            activeDot: '#e1d7d7',
-            activeBg: '#30363e',
-            activeBd: '#919ba5',
-          },
-          {
-            label: 'TACC',
-            key: 'TACC',
-            activeTxt: '#5acdef',
-            activeDot: '#28b9ff',
-            activeBg: '#14304a',
-            activeBd: '#2dafef',
-          },
-          {
-            label: 'AUTOPILOT',
-            key: 'AUTOPILOT',
-            activeTxt: '#64ffa5',
-            activeDot: '#2df56e',
-            activeBg: '#164222',
-            activeBd: '#32eb73',
-          },
-          {
-            label: 'FSD',
-            key: 'FSD',
-            activeTxt: '#50eeff',
-            activeDot: '#00dcff',
-            activeBg: '#0e384e',
-            activeBd: '#00d2ff',
-          },
-        ];
+        // 4. SPEED Column (상단 프로그레스 바 + 노란색 숫자와 km/h)
+        if ('speed' in colBoxMap) {
+          const [cx1] = colBoxMap.speed;
+          const spdVal = Math.round(telemetry.speed_kmh);
+          const barX1 = offsetX + cx1;
+          const barW = Math.round(152 * scale);
+          const barH = Math.max(4, Math.round(7 * scale));
+          const barY1 = hudY + Math.round(62 * scale);
+          const barR = Math.max(2, Math.round(3.5 * scale));
 
-        const startY = hdrY;
-        const boxH = Math.round(27 * scale);
-        const stepY = Math.round(31.5 * scale);
-        const boxW = Math.round(145 * scale);
-        const boxR = Math.max(3, Math.round(6 * scale));
+          ctx.save();
+          // Progress track
+          ctx.fillStyle = '#342922';
+          ctx.beginPath();
+          ctx.roundRect(barX1, barY1, barW, barH, barR);
+          ctx.fill();
 
-        ctx.save();
-        for (let i = 0; i < modesList.length; i++) {
-          const item = modesList[i];
-          const isAct = activeKey === item.key;
-          const by1 = startY + Math.round(i * stepY);
-
-          if (isAct) {
-            ctx.fillStyle = item.activeBg;
-            ctx.strokeStyle = item.activeBd;
-            ctx.lineWidth = Math.max(1, Math.round(1.5 * scale));
+          // Progress fill (yellow)
+          const spdPct = Math.max(0, Math.min(1.0, spdVal / 150.0));
+          if (spdPct > 0.01) {
+            ctx.fillStyle = '#0ae4ff'; // yellow-gold in BGR is #ffe40a
+            ctx.fillStyle = '#ffe00a';
             ctx.beginPath();
-            ctx.roundRect(fsdX, by1, boxW, boxH, boxR);
+            ctx.roundRect(barX1, barY1, Math.max(barR * 2, barW * spdPct), barH, barR);
             ctx.fill();
+          }
+
+          // Speed Number & Unit
+          const spdStr = `${spdVal}`;
+          ctx.fillStyle = '#ffe00a';
+          ctx.font = `bold ${Math.round(48 * scale)}px sans-serif`;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'alphabetic';
+          const numMetrics = ctx.measureText(spdStr);
+          const sW = numMetrics.width;
+
+          ctx.font = `600 ${Math.round(17 * scale)}px sans-serif`;
+          const uMetrics = ctx.measureText('km/h');
+          const uW = uMetrics.width;
+
+          const gapSu = Math.round(7 * scale);
+          const totalW = sW + gapSu + uW;
+          const startX = barX1 + Math.max(0, Math.round((barW - totalW) / 2));
+          const baselineY = hudY + Math.round(128 * scale);
+
+          // Draw Number
+          ctx.fillStyle = '#ffe00a';
+          ctx.font = `bold ${Math.round(48 * scale)}px sans-serif`;
+          ctx.fillText(spdStr, startX, baselineY);
+
+          // Draw Unit
+          ctx.fillStyle = '#d7cdc3';
+          ctx.font = `600 ${Math.round(17 * scale)}px sans-serif`;
+          ctx.fillText('km/h', startX + sW + gapSu, baselineY);
+          ctx.restore();
+        }
+
+        // 5. PEDALS Column (가속 세로 게이지 + ACC % / BRK ON/OFF)
+        if ('pedal' in colBoxMap) {
+          const [cx1] = colBoxMap.pedal;
+          const accPct = Math.min(100, Math.max(0, Math.round(telemetry.accel_pct)));
+          const brkOn = telemetry.brake_applied || telemetry.brake_pct > 0;
+
+          const barW = Math.round(22 * scale);
+          const by1 = hudY + Math.round(58 * scale);
+          const by2 = hudY + Math.round(138 * scale);
+          const barH = by2 - by1;
+          const bx1 = offsetX + cx1;
+          const bx2 = bx1 + barW;
+          const br = Math.max(4, Math.round(barW / 2));
+
+          ctx.save();
+          // Track
+          ctx.fillStyle = '#16120e';
+          ctx.strokeStyle = '#5f5246';
+          ctx.lineWidth = Math.max(1, Math.round(1.3 * scale));
+          ctx.beginPath();
+          ctx.roundRect(bx1, by1, barW, barH, br);
+          ctx.fill();
+          ctx.stroke();
+
+          // Ticks
+          for (const tFrac of [0.25, 0.5, 0.75]) {
+            const ty = Math.round(by1 + barH * tFrac);
+            ctx.strokeStyle = '#64584c';
+            ctx.beginPath();
+            ctx.moveTo(bx2 + Math.round(2 * scale), ty);
+            ctx.lineTo(bx2 + Math.round(6 * scale), ty);
             ctx.stroke();
           }
 
-          const dR = Math.max(2, Math.round((isAct ? 4.2 : 3.2) * scale));
-          const dCx = fsdX + Math.round(12 * scale);
-          const dCy = by1 + boxH / 2;
+          // Accel fill (Green)
+          if (accPct > 0) {
+            const fh = Math.max(br * 2, Math.round((barH - 2) * (accPct / 100.0)));
+            const fy1 = Math.max(by1 + 1, by2 - fh);
+            ctx.fillStyle = '#6eeb00';
+            ctx.beginPath();
+            ctx.roundRect(bx1 + 1, fy1, barW - 2, by2 - fy1 - 1, Math.max(2, br - 1));
+            ctx.fill();
+          }
 
-          ctx.fillStyle = isAct ? item.activeDot : '#5a5048';
+          // Labels
+          const accTx = bx2 + Math.round(10 * scale);
+          const brkX = offsetX + cx1 + Math.round(96 * scale);
+
+          ctx.fillStyle = '#d7cdc3';
+          ctx.font = `bold ${Math.round(14 * scale)}px sans-serif`;
+          ctx.fillText('ACC', accTx, by1 + Math.round(16 * scale));
+          ctx.fillText('BRK', brkX, by1 + Math.round(16 * scale));
+
+          // Accel % Text
+          const accStr = `${accPct}%`;
+          ctx.fillStyle = accPct > 0 ? '#96ff50' : '#a59b91';
+          ctx.font = `bold ${Math.round(19 * scale)}px sans-serif`;
+          ctx.fillText(accStr, accTx, by2 - Math.round(4 * scale));
+
+          // Brake Lamp Badge
+          const lampW = Math.round(64 * scale);
+          const lampH = Math.round(27 * scale);
+          const lampY1 = by2 - lampH;
+          const lampR = Math.max(4, Math.round(6 * scale));
+
+          ctx.fillStyle = brkOn ? '#381cc3' : '#1e1814';
+          ctx.strokeStyle = brkOn ? '#955aff' : '#4b4037';
+          ctx.lineWidth = Math.max(1, Math.round(1.3 * scale));
           ctx.beginPath();
-          ctx.arc(dCx, dCy, dR, 0, Math.PI * 2);
+          ctx.roundRect(brkX, lampY1, lampW, lampH, lampR);
+          ctx.fill();
+          ctx.stroke();
+
+          // Brake Dot & State Text
+          const ldR = Math.max(2, Math.round(4 * scale));
+          const ldCx = brkX + Math.round(14 * scale);
+          const ldCy = lampY1 + lampH / 2;
+
+          ctx.fillStyle = brkOn ? '#8c8cff' : '#5a5048';
+          ctx.beginPath();
+          ctx.arc(ldCx, ldCy, ldR, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.fillStyle = isAct ? item.activeTxt : '#8c847a';
-          ctx.font = `bold ${Math.round(18 * scale)}px sans-serif`;
+          ctx.fillStyle = brkOn ? '#ffffff' : '#9b9188';
+          ctx.font = `bold ${Math.round(14 * scale)}px sans-serif`;
           ctx.textAlign = 'left';
           ctx.textBaseline = 'middle';
-          ctx.fillText(item.label, dCx + Math.round(10 * scale), dCy);
+          ctx.fillText(brkOn ? 'ON' : 'OFF', ldCx + Math.round(8 * scale), ldCy);
+          ctx.restore();
         }
-        ctx.restore();
+
+        // 6. FSD Mode Column (우측 끝 4단계 수직 목록)
+        if ('fsd' in colBoxMap) {
+          const [cx1] = colBoxMap.fsd;
+          const fsdX = offsetX + cx1;
+          const apRaw = telemetry.ap_mode || 'MANUAL';
+          const activeKey = apRaw === 'FSD ACTIVE' ? 'FSD' : apRaw;
+
+          const modesList = [
+            {
+              label: 'MANUAL',
+              key: 'MANUAL',
+              activeTxt: '#fcf8f8',
+              activeDot: '#e1d7d7',
+              activeBg: '#30363e',
+              activeBd: '#919ba5',
+            },
+            {
+              label: 'TACC',
+              key: 'TACC',
+              activeTxt: '#5acdef',
+              activeDot: '#28b9ff',
+              activeBg: '#14304a',
+              activeBd: '#2dafef',
+            },
+            {
+              label: 'AUTOPILOT',
+              key: 'AUTOPILOT',
+              activeTxt: '#64ffa5',
+              activeDot: '#2df56e',
+              activeBg: '#164222',
+              activeBd: '#32eb73',
+            },
+            {
+              label: 'FSD',
+              key: 'FSD',
+              activeTxt: '#50eeff',
+              activeDot: '#00dcff',
+              activeBg: '#0e384e',
+              activeBd: '#00d2ff',
+            },
+          ];
+
+          const startY = hdrY;
+          const boxH = Math.round(27 * scale);
+          const stepY = Math.round(31.5 * scale);
+          const boxW = Math.round(145 * scale);
+          const boxR = Math.max(3, Math.round(6 * scale));
+
+          ctx.save();
+          for (let i = 0; i < modesList.length; i++) {
+            const item = modesList[i];
+            const isAct = activeKey === item.key;
+            const by1 = startY + Math.round(i * stepY);
+
+            if (isAct) {
+              ctx.fillStyle = item.activeBg;
+              ctx.strokeStyle = item.activeBd;
+              ctx.lineWidth = Math.max(1, Math.round(1.5 * scale));
+              ctx.beginPath();
+              ctx.roundRect(fsdX, by1, boxW, boxH, boxR);
+              ctx.fill();
+              ctx.stroke();
+            }
+
+            const dR = Math.max(2, Math.round((isAct ? 4.2 : 3.2) * scale));
+            const dCx = fsdX + Math.round(12 * scale);
+            const dCy = by1 + boxH / 2;
+
+            ctx.fillStyle = isAct ? item.activeDot : '#5a5048';
+            ctx.beginPath();
+            ctx.arc(dCx, dCy, dR, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = isAct ? item.activeTxt : '#8c847a';
+            ctx.font = `bold ${Math.round(18 * scale)}px sans-serif`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(item.label, dCx + Math.round(10 * scale), dCy);
+          }
+          ctx.restore();
+        }
       }
 
       // 7. Optional brand QR code (Bottom-Right of HUD).

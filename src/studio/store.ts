@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import { DEFAULT_RESOLUTION, type ResolutionName } from '@/core/constants';
 import { DEFAULT_RENDER_OPTIONS, type RenderOptions } from '@/core/renderer';
+import { DEFAULT_CARD_PALETTE, TELEMETRY_STYLES } from '@/core/telemetry-style';
 
 import type { ClipItem, FolderGroup } from '@/core/clip-scanner';
 import type { TranslationKey } from '@/i18n';
@@ -101,6 +102,7 @@ export interface StudioState {
 const THEME_KEY = 'ct_studio_theme';
 const VIEW_MODE_KEY = 'ct_view_mode';
 const TELEMETRY_ORDER_KEY = 'ct_telemetry_order';
+const TELEMETRY_STYLE_KEY = 'ct_telemetry_style';
 const AUTO_NEXT_KEY = 'ct_auto_next';
 
 const readStorage = <S extends z.ZodMiniType>(
@@ -150,6 +152,7 @@ export const useStudio = create<StudioState>()(() => ({
     ...DEFAULT_RENDER_OPTIONS,
     pillar_pip: false,
     telemetryOrder: savedTelemetryOrder,
+    telemetryStyle: readStorage(TELEMETRY_STYLE_KEY, z.enum(TELEMETRY_STYLES), String) ?? 'classic',
   },
   autoNext: savedAutoNext === '1',
   resolution: DEFAULT_RESOLUTION,
@@ -175,6 +178,8 @@ export const setStudio = useStudio.setState;
 
 export const setOption = <K extends keyof RenderOptions>(key: K, value: RenderOptions[K]) => {
   setStudio((state) => ({ options: { ...state.options, [key]: value } }));
+  if (key === 'telemetryStyle' && typeof value === 'string')
+    writeStorage(TELEMETRY_STYLE_KEY, value);
 };
 
 export const setTelemetryOrder = (order: string[] | null) => {
@@ -193,6 +198,12 @@ export const applyStudioTheme = (theme = getStudio().theme) => {
   root.classList.toggle('dark', !theme.startsWith('paper'));
   const styles = getComputedStyle(root);
   const color = styles.getPropertyValue('--background').trim();
+  const cardPalette = { ...DEFAULT_CARD_PALETTE };
+  for (const key of Object.keys(cardPalette) as (keyof typeof cardPalette)[]) {
+    const token = key === 'speedCard' ? 'speed-card' : key;
+    cardPalette[key] = styles.getPropertyValue(`--hud-card-${token}`).trim() || cardPalette[key];
+  }
+  setOption('cardPalette', cardPalette);
   if (color) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
 };
 

@@ -38,10 +38,22 @@ const telemetryLayout = () => {
     : null;
 };
 
+const isModernTelemetry = () => {
+  const { telemetryStyle } = getStudio().options;
+  return telemetryStyle === 'cards' || telemetryStyle === 'strip';
+};
+
 export const hitTestTelemetryColumn = (cx: number, cy: number): string | null => {
   const canvas = getCanvas();
   const layout = telemetryLayout();
   if (!canvas || !layout || layout.bottomH <= 0 || cy < layout.frontH) return null;
+  if (isModernTelemetry()) {
+    return (
+      layout.boxes.find(
+        ({ x, y, width, height }) => cx >= x && cx < x + width && cy >= y && cy < y + height,
+      )?.key ?? null
+    );
+  }
   const pad = 12 * (canvas.width / 1920);
   for (const [key, [x, width]] of Object.entries(layout.colBoxMap)) {
     if (cx >= layout.offsetX + x - pad && cx <= layout.offsetX + x + width + pad) return key;
@@ -49,10 +61,22 @@ export const hitTestTelemetryColumn = (cx: number, cy: number): string | null =>
   return null;
 };
 
-export const dragTelemetryColumn = (cx: number) => {
+export const dragTelemetryColumn = (cx: number, cy: number) => {
   const dragging = getStudio().options.draggingCol;
   const layout = telemetryLayout();
   if (!dragging || !layout || layout.bottomH <= 0) return;
+  if (isModernTelemetry()) {
+    const target = hitTestTelemetryColumn(cx, cy);
+    if (!target || target === dragging) return;
+    const order = [...layout.order];
+    const from = order.indexOf(dragging);
+    const to = order.indexOf(target);
+    if (from < 0 || to < 0) return;
+    order[from] = target;
+    order[to] = dragging;
+    setTelemetryOrder(order);
+    return;
+  }
   const { order, colBoxMap, offsetX } = layout;
   const activeKeys = order.filter((key) => key in colBoxMap);
   const index = activeKeys.indexOf(dragging);
