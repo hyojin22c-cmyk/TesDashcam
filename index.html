@@ -83,10 +83,10 @@
     <div id="app" class="app-root">
       <!-- 모바일 전용 상단 헤더 바 -->
       <header id="mobile-header" class="mobile-top-bar">
-        <div class="mobile-brand">
-          <img src="./ct-icon-v3-180.png" alt="CT Dash" class="brand-logo-img" />
+        <a class="mobile-brand studio-version-link" href="/CT-dashcam-studio-WEB/preview/pr-1/" data-preview-link aria-label="프리뷰 디자인 열기" title="프리뷰 디자인 열기">
+          <img src="./ct-icon-v3-180.png" alt="" class="brand-logo-img" />
           <span class="brand-title">CT Dash Studio <span class="brand-tag">WEB</span></span>
-        </div>
+        </a>
         <div class="mobile-header-actions">
           <div id="mobile-tier-badge" class="tier-pill-mobile">측정 중...</div>
           <button id="btn-add-to-home" class="btn btn-add-home" title="홈 화면 바로가기 추가">
@@ -125,7 +125,9 @@
           <div class="mobile-drawer-header">
             <div class="drawer-header-top">
               <div class="drawer-title-box">
-                <img src="./ct-icon-v3-180.png" alt="CT Dash" class="brand-logo-img" />
+                <a class="studio-version-link" href="/CT-dashcam-studio-WEB/preview/pr-1/" data-preview-link aria-label="프리뷰 디자인 열기" title="프리뷰 디자인 열기">
+                  <img src="./ct-icon-v3-180.png" alt="" class="brand-logo-img" />
+                </a>
                 <span class="drawer-title">TeslaCam Studio</span>
               </div>
               <button id="btn-close-drawer" class="btn-drawer-close" title="닫기 (왼쪽으로 쓸어넘겨서 닫기 가능)">
@@ -142,8 +144,13 @@
           <!-- 1-1. 클립 목록 섹션 (모바일 탭: clips) -->
           <div class="sidebar-section mobile-tab-section active" data-mobile-tab="clips">
             <div class="folder-load-actions">
-              <div id="btn-open-folder" class="btn btn-folder-load" role="button" tabindex="0">
-                <span id="btn-open-folder-text"> TeslaCam 폴더 지정</span>
+              <div class="folder-load-row">
+                <a class="studio-version-link desktop-preview-link" href="/CT-dashcam-studio-WEB/preview/pr-1/" data-preview-link aria-label="프리뷰 디자인 열기" title="프리뷰 디자인 열기">
+                  <img src="./ct-icon-v3-180.png" alt="" class="brand-logo-img" />
+                </a>
+                <div id="btn-open-folder" class="btn btn-folder-load" role="button" tabindex="0">
+                  <span id="btn-open-folder-text"> TeslaCam 폴더 지정</span>
+                </div>
               </div>
               <div id="btn-open-files" class="btn btn-files-load" role="button" tabindex="0" title="대용량 RecentClips 또는 하위 파일 직접 다중 선택 (iOS 안정 로드)">
                 <span id="btn-open-files-text"> 파일 선택 (대용량/RecentClips)</span>
