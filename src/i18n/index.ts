@@ -100,9 +100,18 @@ export const detectInitialLang = (): SupportedLang =>
 applyDocumentLanguage(currentLang());
 i18n.on('languageChanged', () => applyDocumentLanguage(currentLang()));
 
-export const setLanguage = async (lang: SupportedLang) => {
+const saveLanguage = (lang: SupportedLang) => {
   try {
     localStorage.setItem(STORAGE_KEY, lang);
   } catch {}
+};
+
+if (typeof window !== 'undefined') {
+  const requested = normalizeLang(new URLSearchParams(window.location.search).get('lang') ?? '');
+  if (requested) saveLanguage(requested);
+}
+
+export const setLanguage = async (lang: SupportedLang) => {
+  saveLanguage(lang);
   await i18n.changeLanguage(lang);
 };

@@ -69,6 +69,14 @@ describe('initial language and persistence', () => {
     expect(detectInitialLang()).toBe('de');
   });
 
+  it('saves an explicit language link over the previous preference at startup', async () => {
+    const storage = environment(['ko'], 'ko', '?lang=en');
+    vi.resetModules();
+    const { currentLang } = await import('../src/i18n');
+    expect(currentLang()).toBe('en');
+    expect(storage.setItem).toHaveBeenCalledWith('ct_language', 'en');
+  });
+
   it('normalizes regional codes without accepting unrelated prefixes', () => {
     expect(normalizeLang(' FR_ca ')).toBe('fr');
     for (const invalid of ['english', 'deceptive', 'hant', 'constructor', '__proto__']) {
