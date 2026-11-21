@@ -86,6 +86,8 @@
   --color-glass: var(--glass);
   --color-glass-subtle: var(--glass-subtle);
   --color-stage: var(--stage);
+  --color-switch-checked: var(--switch-checked, var(--primary));
+  --color-switch-checked-thumb: var(--switch-checked-thumb, var(--foreground));
   --color-control-off: var(--palette-grey-800);
 
   --radius-xs: 6px;

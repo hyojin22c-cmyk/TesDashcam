@@ -8,6 +8,8 @@
   --attention-foreground: var(--primary-foreground);
   --input: var(--solid);
   --ring: var(--attention);
+  --switch-checked: color-mix(in srgb, var(--primary) 70%, white);
+  --switch-checked-thumb: #fff;
   --glass: color-mix(in srgb, var(--secondary) 90%, transparent);
   --glass-subtle: color-mix(in srgb, var(--secondary) 84%, transparent);
 }
