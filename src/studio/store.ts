@@ -9,11 +9,16 @@ import type { TranslationKey } from '@/i18n';
 
 export const STUDIO_THEMES = [
   'default',
+  'graphite',
   'midnight',
   'forest',
   'burgundy',
   'amber',
   'paper',
+  'paper-blue',
+  'paper-violet',
+  'paper-rose',
+  'paper-sand',
 ] as const;
 const ThemeSchema = z.enum(STUDIO_THEMES);
 export type StudioTheme = z.infer<typeof ThemeSchema>;
@@ -185,7 +190,7 @@ export const setAutoNext = (autoNext: boolean) => {
 export const applyStudioTheme = (theme = getStudio().theme) => {
   const root = document.documentElement;
   root.dataset.theme = theme;
-  root.classList.toggle('dark', theme !== 'paper');
+  root.classList.toggle('dark', !theme.startsWith('paper'));
   const color = getComputedStyle(root).getPropertyValue('--background').trim();
   if (color) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
 };
