@@ -346,10 +346,16 @@ export class WebCodecsExporter {
     let lastCapturedMediaTime = -1;
     let lastFrameWallTime = performance.now();
 
+    let needsResume = false;
+    let watchFramesAfterResume = false;
+    let pollForFrames = false;
+    let releaseFrameWait: (() => void) | undefined;
     const onVisibilityChange = () => {
       lastFrameWallTime = performance.now();
       if (document.hidden) {
+        needsResume = true;
         for (const video of activeVideos) video.pause();
+        releaseFrameWait?.();
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -357,42 +363,64 @@ export class WebCodecsExporter {
       while (!signal.aborted) {
         if (document.hidden) await waitForVisibleDocument(signal);
         signal.throwIfAborted();
-        // 브라우저 백그라운드 정책 등으로 일시정지되었을 경우 안전 재개 (백프레셔 상태가 아닐 때)
-        if (masterVideo.paused && videoEncoder.encodeQueueSize <= 4) {
-          for (const v of activeVideos) {
-            if (v.paused) v.play().catch(() => {});
+        // The browser may also pause only a secondary camera on an app switch.
+        if (needsResume) {
+          needsResume = false;
+          watchFramesAfterResume = true;
+          pollForFrames = false;
+          for (const video of activeVideos) {
+            video.playbackRate = baseRate;
+            video.play().catch(() => {});
+          }
+        } else if (masterVideo.paused && videoEncoder.encodeQueueSize <= 4) {
+          for (const video of activeVideos) {
+            if (video.paused) video.play().catch(() => {});
           }
         }
 
-        // requestVideoFrameCallback을 통해 GPU 하드웨어 디코더가 새 프레임을 렌더할 때까지 대기
         const frameMeta = await new Promise<{ mediaTime: number }>((resolve) => {
           let settled = false;
-          let timeoutId: ReturnType<typeof setTimeout> | undefined;
           let frameCallbackId: number | undefined;
-
-          const onFrame = (_now: number, metadata: VideoFrameCallbackMetadata) => {
+          let poll: ReturnType<typeof setInterval> | undefined;
+          const finish = (mediaTime: number) => {
             if (settled) return;
             settled = true;
-            if (timeoutId) clearTimeout(timeoutId);
-            resolve({ mediaTime: metadata?.mediaTime ?? masterVideo.currentTime });
-          };
-
-          timeoutId = setTimeout(() => {
-            if (settled) return;
-            settled = true;
+            clearTimeout(timeout);
+            clearInterval(poll);
             if (frameCallbackId !== undefined)
               masterVideo.cancelVideoFrameCallback(frameCallbackId);
-            resolve({ mediaTime: masterVideo.currentTime });
-          }, 400);
+            releaseFrameWait = undefined;
+            resolve({ mediaTime });
+          };
+          const readClock = () => finish(masterVideo.currentTime);
+          const hasFrameCallback = typeof masterVideo.requestVideoFrameCallback === 'function';
+          const timeout = setTimeout(readClock, hasFrameCallback ? 400 : 35);
+          releaseFrameWait = readClock;
+          if (!hasFrameCallback) return;
 
-          if (typeof masterVideo.requestVideoFrameCallback === 'function') {
-            frameCallbackId = masterVideo.requestVideoFrameCallback(onFrame);
-          } else {
-            setTimeout(() => {
-              if (settled) return;
-              settled = true;
-              resolve({ mediaTime: masterVideo.currentTime });
-            }, 35);
+          frameCallbackId = masterVideo.requestVideoFrameCallback((_, metadata) => {
+            if (settled) return;
+            frameCallbackId = undefined;
+            pollForFrames = false;
+            finish(metadata.mediaTime);
+          });
+
+          // After foregrounding, the video can decode frames before the compositor
+          // starts delivering callbacks again. Use its frame counter during that gap.
+          if (watchFramesAfterResume && typeof masterVideo.getVideoPlaybackQuality === 'function') {
+            const presentedFrames = () => {
+              const { totalVideoFrames, droppedVideoFrames } =
+                masterVideo.getVideoPlaybackQuality();
+              return totalVideoFrames - droppedVideoFrames;
+            };
+            const previous = presentedFrames();
+            const startedAt = performance.now();
+            poll = setInterval(() => {
+              if (!pollForFrames && performance.now() - startedAt < 100) return;
+              if (masterVideo.readyState < 2 || presentedFrames() <= previous) return;
+              pollForFrames = true;
+              readClock();
+            }, 20);
           }
         });
 
@@ -529,7 +557,7 @@ export class WebCodecsExporter {
             while (videoEncoder.encodeQueueSize > 1 && !signal.aborted) {
               await new Promise((r) => setTimeout(r, 10));
             }
-            if (!signal.aborted) {
+            if (!signal.aborted && !document.hidden) {
               for (const v of activeVideos) {
                 v.play().catch(() => {});
               }
