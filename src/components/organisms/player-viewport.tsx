@@ -145,7 +145,7 @@ export const PlayerViewport = ({ className }: { className?: string }) => {
     onDrag: ({ first, last, xy: [x, y] }) => {
       if (first || last || !getStudio().options.draggingCol) return;
       const point = toCanvasPoint(x, y);
-      if (point) dragTelemetryColumn(point.cx);
+      if (point) dragTelemetryColumn(point.cx, point.cy);
     },
     onDragEnd: ({ event, xy: [x, y] }) => {
       if (getStudio().options.draggingCol) {

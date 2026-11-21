@@ -66,7 +66,7 @@ export const defaultFps = (speed: number, mobile: boolean) => {
 
 export const setExportSpeed = (speed: number) => {
   setStudio((state) => ({
-    options: { ...state.options, exportSpeed: speed },
+    options: { ...state.options, draggingCol: null, exportSpeed: speed },
     exportFps: defaultFps(speed, isMobileDevice()),
   }));
 };

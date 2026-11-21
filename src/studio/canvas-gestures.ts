@@ -1,6 +1,6 @@
 import { clamp } from 'es-toolkit';
 
-import { OverlayRenderer, DEFAULT_TELEMETRY_ORDER } from '@/core/renderer';
+import { OverlayRenderer } from '@/core/renderer';
 
 import { getCanvas, renderFrame, restorePreviousLayout, showSingleCamera } from './playback';
 import { getStudio, setOption, setTelemetryOrder } from './store';
@@ -42,34 +42,28 @@ export const hitTestTelemetryColumn = (cx: number, cy: number): string | null =>
   const canvas = getCanvas();
   const layout = telemetryLayout();
   if (!canvas || !layout || layout.bottomH <= 0 || cy < layout.frontH) return null;
-  const pad = 12 * (canvas.width / 1920);
-  for (const [key, [x1, w]] of Object.entries(layout.colBoxMap)) {
-    if (cx >= layout.offsetX + x1 - pad && cx <= layout.offsetX + x1 + w + pad) return key;
-  }
-  return null;
+  const modern =
+    getStudio().options.telemetryStyle === 'cards' ||
+    getStudio().options.telemetryStyle === 'strip';
+  const pad = modern ? 0 : 12 * (canvas.width / 1920);
+  return (
+    layout.boxes.find(
+      ({ x, y, width, height }) =>
+        cx >= x - pad && cx < x + width + pad && cy >= y && cy < y + height,
+    )?.key ?? null
+  );
 };
 
-export const dragTelemetryColumn = (cx: number) => {
+export const dragTelemetryColumn = (cx: number, cy: number) => {
   const dragging = getStudio().options.draggingCol;
   const layout = telemetryLayout();
-  if (!dragging || !layout || layout.bottomH <= 0 || !layout.colBoxMap[dragging]) return;
-  const order = [...(getStudio().options.telemetryOrder ?? DEFAULT_TELEMETRY_ORDER)];
-  const active = order.filter((key) => key in layout.colBoxMap);
-  const index = active.indexOf(dragging);
-  if (index < 0 || active.length < 2) return;
-
-  const left = active[index - 1];
-  const right = active[index + 1];
-  const leftBox = left ? layout.colBoxMap[left] : undefined;
-  const rightBox = right ? layout.colBoxMap[right] : undefined;
-  let target: string | undefined;
-  if (left && leftBox && cx < layout.offsetX + leftBox[0] + leftBox[1] * 0.55) target = left;
-  else if (right && rightBox && cx > layout.offsetX + rightBox[0] + rightBox[1] * 0.45) {
-    target = right;
-  }
-  if (!target) return;
+  if (!dragging || !layout) return;
+  const target = hitTestTelemetryColumn(cx, cy);
+  if (!target || target === dragging) return;
+  const order = [...layout.order];
   const a = order.indexOf(dragging);
   const b = order.indexOf(target);
+  if (a < 0 || b < 0) return;
   order[a] = target;
   order[b] = dragging;
   setTelemetryOrder(order);
