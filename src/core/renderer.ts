@@ -2,7 +2,12 @@
 import { OpenStreetMapTileLoader } from './map-loader';
 import { drawQRCode } from './qr-code';
 import { correctRearFrame } from './rear-correction';
-import { drawRoadsterCockpit, ROADSTER_DECOR_WIDTH } from './roadster-cockpit';
+import {
+  drawRoadsterCockpit,
+  drawRoadsterTelemetry,
+  ROADSTER_PORTRAIT_WIDTH,
+  ROADSTER_UNIT_WIDTH,
+} from './roadster-cockpit';
 import { drawStudioTelemetry } from './studio-telemetry';
 import {
   type CardPalette,
@@ -355,7 +360,7 @@ export class OverlayRenderer {
     const bottomH = hasBottomHud ? Math.round(180 * scale) : 0;
     const frontH = outH - bottomH;
     const mapW = options.map ? Math.round((roadster ? 330 : 410) * scale) : 0;
-    const offsetX = mapW;
+    const offsetX = mapW + (roadster ? Math.round(ROADSTER_UNIT_WIDTH * scale) : 0);
     const availW = outW - offsetX;
 
     // Only reserve the QR area while the overlay is enabled.
@@ -363,7 +368,7 @@ export class OverlayRenderer {
     const qrPadR = Math.round(16 * scale);
     const qrZoneW = options.qr ? qrPx + qrPadR + Math.round(18 * scale) : 0;
     const decorRight = outW - qrZoneW;
-    const decorW = roadster ? Math.round(ROADSTER_DECOR_WIDTH * scale) : 0;
+    const decorW = roadster ? Math.round(ROADSTER_PORTRAIT_WIDTH * scale) : 0;
     const colsAvailW = Math.max(Math.round(200 * scale), availW - qrZoneW - decorW);
     const telemetryScale = roadster ? 0.85 * scale : scale;
 
@@ -472,7 +477,7 @@ export class OverlayRenderer {
       availW,
       frontH,
       decorRight,
-      telemetryScale,
+      mapW,
       bottomH,
       qrPx,
       qrPadR,
@@ -512,14 +517,13 @@ export class OverlayRenderer {
       offsetX,
       frontH,
       decorRight,
-      telemetryScale,
+      mapW,
       bottomH,
       qrPx,
       qrPadR,
     } = this.computeTelemetryLayout(options, outW, outH);
     const rearCrop = options.rear_crop ? REAR_BOTTOM_CROP : 0;
     const hasBottomHud = bottomH > 0;
-    const mapW = options.map ? offsetX : 0;
 
     // Clear background
     ctx.fillStyle = '#080b10';
@@ -739,20 +743,18 @@ export class OverlayRenderer {
       grad.addColorStop(1, '#0a0c10');
       const style = options.telemetryStyle;
       const modern = style === 'cards' || style === 'strip';
-      ctx.fillStyle =
-        style === 'studio'
-          ? '#000'
-          : cardPalette
-            ? cardPalette.background
-            : style === 'strip'
-              ? '#112326'
-              : grad;
-      ctx.fillRect(0, hudY, hudW, bottomH);
-
       if (style === 'roadster') {
-        ctx.fillStyle = '#5d6867';
-        ctx.fillRect(0, hudY, outW, Math.max(1, 2 * scale));
-        drawRoadsterCockpit(ctx, decorRight, hudY, bottomH, scale);
+        drawRoadsterCockpit(ctx, mapW, decorRight, hudW, hudY, bottomH, scale);
+      } else {
+        ctx.fillStyle =
+          style === 'studio'
+            ? '#000'
+            : cardPalette
+              ? cardPalette.background
+              : style === 'strip'
+                ? '#112326'
+                : grad;
+        ctx.fillRect(0, hudY, hudW, bottomH);
       }
 
       if (!style || style === 'classic') {
@@ -765,14 +767,17 @@ export class OverlayRenderer {
         ctx.stroke();
       }
 
+      const mapInsetX = style === 'roadster' ? Math.round(17 * scale) : 0;
+      const mapInsetY = style === 'roadster' ? Math.round(21 * scale) : 0;
+
       // OpenStreetMap Minimap
       if (options.map && mapW > 0) {
         OpenStreetMapTileLoader.drawMinimap(
           ctx,
-          0,
-          hudY,
-          mapW,
-          bottomH,
+          mapInsetX,
+          hudY + mapInsetY,
+          mapW - 2 * mapInsetX,
+          bottomH - 2 * mapInsetY,
           telemetry.lat,
           telemetry.lon,
           telemetry.heading,
@@ -794,9 +799,9 @@ export class OverlayRenderer {
         const attribution = '© OpenStreetMap contributors';
         const labelW = ctx.measureText(attribution).width + 12 * scale;
         ctx.fillStyle = '#11151c';
-        ctx.fillRect(0, outH - 19 * scale, labelW, 19 * scale);
+        ctx.fillRect(mapInsetX, outH - mapInsetY - 19 * scale, labelW, 19 * scale);
         ctx.fillStyle = '#fff';
-        ctx.fillText(attribution, 6 * scale, outH - 3 * scale);
+        ctx.fillText(attribution, mapInsetX + 6 * scale, outH - mapInsetY - 3 * scale);
         ctx.restore();
       }
 
@@ -822,14 +827,27 @@ export class OverlayRenderer {
               signalScale,
             ),
         );
-      } else if (style === 'studio' || style === 'roadster') {
+      } else if (style === 'roadster') {
+        drawRoadsterTelemetry(
+          ctx,
+          colBoxMap,
+          offsetX,
+          hudY,
+          scale,
+          telemetry,
+          baseDateStr,
+          currentTimeSec,
+          Math.floor((frameIdx / fps) * 3.5) % 2 === 0,
+          options.newDriveModeLabels,
+        );
+      } else if (style === 'studio') {
         drawStudioTelemetry(
           ctx,
           colBoxMap,
           offsetX,
-          hudY + Math.round((scale - telemetryScale) * 90),
-          Math.round(180 * telemetryScale),
-          telemetryScale,
+          hudY,
+          bottomH,
+          scale,
           telemetry,
           baseDateStr,
           currentTimeSec,
