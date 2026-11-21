@@ -26,7 +26,7 @@ jobs:
       - name: Check out the reviewed PR 1 preview
         uses: actions/checkout@v4
         with:
-          ref: 508a542aaa20cc2d69460d830a4543a6cb270a54
+          ref: e8447489ef12f0d97348ff78e7bda2f2529b5d4e
           persist-credentials: false
 
       - name: Set up Node.js for the preview
