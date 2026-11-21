@@ -7,6 +7,7 @@ import {
   type CardPalette,
   computeModernTelemetryBoxes,
   DEFAULT_CARD_PALETTE,
+  driveModeLabel,
   drawModernTelemetry,
   type TelemetryStyle,
 } from './telemetry-style';
@@ -35,6 +36,7 @@ export interface RenderOptions {
   playbackSpeed: number;
   exportSpeed?: number;
   telemetryStyle?: TelemetryStyle;
+  newDriveModeLabels?: boolean;
   cardPalette?: CardPalette;
   telemetryOrder?: string[];
   draggingCol?: string | null;
@@ -352,7 +354,8 @@ export class OverlayRenderer {
     const activeCols = order
       .filter((k) => options[k as keyof RenderOptions])
       .map((k) => {
-        const width = options.telemetryStyle === 'studio' && k === 'fsd' ? 232 : COL_WIDTH_BASE[k];
+        const wideMode = options.telemetryStyle === 'studio' || options.newDriveModeLabels;
+        const width = wideMode && k === 'fsd' ? 232 : COL_WIDTH_BASE[k];
         return [k, Math.round(width * scale)] as [string, number];
       });
 
@@ -1117,7 +1120,7 @@ export class OverlayRenderer {
           const startY = hdrY;
           const boxH = Math.round(27 * scale);
           const stepY = Math.round(31.5 * scale);
-          const boxW = Math.round(145 * scale);
+          const boxW = colBoxMap.fsd[1] - Math.round(11 * scale);
           const boxR = Math.max(3, Math.round(6 * scale));
 
           ctx.save();
@@ -1149,7 +1152,11 @@ export class OverlayRenderer {
             ctx.font = `bold ${Math.round(18 * scale)}px sans-serif`;
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            ctx.fillText(item.label, dCx + Math.round(10 * scale), dCy);
+            const textX = dCx + Math.round(10 * scale);
+            const label = driveModeLabel(item.key, item.label, options.newDriveModeLabels);
+            if (options.newDriveModeLabels)
+              ctx.fillText(label, textX, dCy, fsdX + boxW - textX - Math.round(6 * scale));
+            else ctx.fillText(label, textX, dCy);
           }
           ctx.restore();
         }

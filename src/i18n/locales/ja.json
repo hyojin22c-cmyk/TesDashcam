@@ -130,6 +130,8 @@
   "http_warning": "HTTP環境ではブラウザのセキュリティ制限によりWebCodecsエクスポートが制限される場合があります（HTTPS推奨）。",
   "hud_blinker": "方向指示器",
   "hud_drive_mode": "運転モード",
+  "hud_new_mode_labels": "新しい運転モード名",
+  "hud_new_mode_labels_description": "Autopilot → Autosteer · FSD → Assisted Driving",
   "hud_pedals": "アクセル / ブレーキ",
   "hud_speed": "速度",
   "hud_steering": "ステアリング角",

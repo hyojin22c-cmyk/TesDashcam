@@ -117,6 +117,13 @@ export const OverlaysPanel = () => {
             onValueChange={(value) => setOption('telemetryStyle', value)}
           />
         </div>
+        <SwitchRow
+          label={t('hud_new_mode_labels')}
+          description={t('hud_new_mode_labels_description')}
+          title={t('hud_new_mode_labels_description')}
+          checked={options.newDriveModeLabels ?? false}
+          onCheckedChange={(checked) => setOption('newDriveModeLabels', checked)}
+        />
         <div className="flex flex-col">
           <For each={OVERLAY_KEYS}>
             {(key) => (

@@ -8,6 +8,13 @@ import type { TelemetryData } from './sei-decoder';
 export const TELEMETRY_STYLES = ['classic', 'studio', 'cards', 'strip'] as const;
 export type TelemetryStyle = (typeof TELEMETRY_STYLES)[number];
 
+export const driveModeLabel = (key: string, label: string, useNewLabels?: boolean) => {
+  if (!useNewLabels) return label;
+  if (key === 'AUTOPILOT') return 'AUTOSTEER';
+  if (key === 'FSD') return 'ASSISTED DRIVING';
+  return label;
+};
+
 export const TELEMETRY_FONT = '"Pretendard Variable", Pretendard, system-ui, sans-serif';
 
 export const DEFAULT_CARD_PALETTE = {
@@ -239,7 +246,15 @@ export const drawModernTelemetry = (
         break;
       }
       case 'fsd':
-        renderText(present && mode ? mode : '—', left, valueY, usable, large ? 38 : 28, fg, true);
+        renderText(
+          present && mode ? driveModeLabel(mode, mode, options.newDriveModeLabels) : '—',
+          left,
+          valueY,
+          usable,
+          large ? 38 : 28,
+          fg,
+          true,
+        );
         break;
     }
   });

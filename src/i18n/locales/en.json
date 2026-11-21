@@ -130,6 +130,8 @@
   "http_warning": "Due to browser security restrictions on HTTP, WebCodecs export might be limited (HTTPS recommended).",
   "hud_blinker": "Turn signals",
   "hud_drive_mode": "Drive mode",
+  "hud_new_mode_labels": "New drive mode labels",
+  "hud_new_mode_labels_description": "Autopilot → Autosteer · FSD → Assisted Driving",
   "hud_pedals": "Accel / Brake",
   "hud_speed": "Speed",
   "hud_steering": "Steering angle",

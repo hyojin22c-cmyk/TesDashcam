@@ -130,6 +130,8 @@
   "http_warning": "HTTP 연결 환경에서는 브라우저 보안 제약으로 WebCodecs 내보내기가 제한될 수 있습니다 (HTTPS 연결 권장).",
   "hud_blinker": "방향지시등",
   "hud_drive_mode": "주행 모드",
+  "hud_new_mode_labels": "새 주행 모드 용어",
+  "hud_new_mode_labels_description": "Autopilot → Autosteer · FSD → Assisted Driving",
   "hud_pedals": "가속 / 브레이크",
   "hud_speed": "속도",
   "hud_steering": "조향각",

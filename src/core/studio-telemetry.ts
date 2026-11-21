@@ -1,6 +1,6 @@
 import { clamp } from 'es-toolkit';
 
-import { TELEMETRY_FONT } from './telemetry-style';
+import { driveModeLabel, TELEMETRY_FONT } from './telemetry-style';
 
 import type { RenderOptions } from './renderer';
 import type { TelemetryData } from './sei-decoder';
@@ -333,7 +333,12 @@ export const drawStudioTelemetry = (
       ctx.fill();
       ctx.fillStyle = on ? COLOR.text : COLOR.faint;
       ctx.font = font(on ? 600 : 500, 16 * scale);
-      ctx.fillText(label, left + px(26), y + rowH / 2, rowW - px(32));
+      ctx.fillText(
+        driveModeLabel(key, label, options.newDriveModeLabels),
+        left + px(26),
+        y + rowH / 2,
+        rowW - px(32),
+      );
     });
     ctx.restore();
   }

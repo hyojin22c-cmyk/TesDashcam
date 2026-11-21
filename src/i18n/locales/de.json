@@ -130,6 +130,8 @@
   "http_warning": "Bei HTTP kann der Browser den WebCodecs-Export einschränken (HTTPS empfohlen).",
   "hud_blinker": "Blinker",
   "hud_drive_mode": "Fahrmodus",
+  "hud_new_mode_labels": "Neue Fahrmodusnamen",
+  "hud_new_mode_labels_description": "Autopilot → Autosteer · FSD → Assisted Driving",
   "hud_pedals": "Gas / Bremse",
   "hud_speed": "Tempo",
   "hud_steering": "Lenkwinkel",

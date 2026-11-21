@@ -103,6 +103,7 @@ const THEME_KEY = 'ct_studio_theme';
 const VIEW_MODE_KEY = 'ct_view_mode';
 const TELEMETRY_ORDER_KEY = 'ct_telemetry_order';
 const TELEMETRY_STYLE_KEY = 'ct_telemetry_style';
+const DRIVE_MODE_LABELS_KEY = 'ct_drive_mode_labels';
 const AUTO_NEXT_KEY = 'ct_auto_next';
 
 const readStorage = <S extends z.ZodMiniType>(
@@ -153,6 +154,7 @@ export const useStudio = create<StudioState>()(() => ({
     pillar_pip: false,
     telemetryOrder: savedTelemetryOrder,
     telemetryStyle: readStorage(TELEMETRY_STYLE_KEY, z.enum(TELEMETRY_STYLES), String) ?? 'classic',
+    newDriveModeLabels: readStorage(DRIVE_MODE_LABELS_KEY, z.enum(['0', '1']), String) === '1',
   },
   autoNext: savedAutoNext === '1',
   resolution: DEFAULT_RESOLUTION,
@@ -180,6 +182,7 @@ export const setOption = <K extends keyof RenderOptions>(key: K, value: RenderOp
   setStudio((state) => ({ options: { ...state.options, [key]: value } }));
   if (key === 'telemetryStyle' && typeof value === 'string')
     writeStorage(TELEMETRY_STYLE_KEY, value);
+  if (key === 'newDriveModeLabels') writeStorage(DRIVE_MODE_LABELS_KEY, value ? '1' : '0');
 };
 
 export const setTelemetryOrder = (order: string[] | null) => {

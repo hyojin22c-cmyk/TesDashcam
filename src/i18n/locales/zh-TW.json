@@ -130,6 +130,8 @@
   "http_warning": "在 HTTP 環境下由於瀏覽器安全策略限制，WebCodecs 匯出可能會受限（建議使用 HTTPS）。",
   "hud_blinker": "方向燈",
   "hud_drive_mode": "駕駛模式",
+  "hud_new_mode_labels": "新版駕駛模式名稱",
+  "hud_new_mode_labels_description": "Autopilot → Autosteer · FSD → Assisted Driving",
   "hud_pedals": "加速 / 煞車",
   "hud_speed": "速度",
   "hud_steering": "轉向角",
