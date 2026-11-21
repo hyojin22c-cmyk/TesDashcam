@@ -52,42 +52,47 @@ export const QR_MATRIX: readonly string[] = [
 
 /**
  * Draws the brand QR code on the canvas with exact integer-pixel snapping.
- * Preserves the dark HUD aesthetic (muted warm slate gray background + deep black modules + border)
- * while maximizing scanner contrast and edge sharpness.
+ * Optional theme colors apply to both the modules and the quiet zone.
  */
 export const drawQRCode = (
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   size: number,
+  colors?: { background: string; text: string },
 ): void => {
   ctx.save();
   const ix = Math.round(x);
   const iy = Math.round(y);
   const isize = Math.round(size);
 
-  ctx.fillStyle = '#a89a90';
+  ctx.fillStyle = colors?.background ?? '#a89a90';
   ctx.fillRect(ix, iy, isize, isize);
 
   const numModules = QR_MATRIX.length; // 39
   const cellSize = isize / numModules;
+  // Keep the themed modules from expanding into one another at compact resolutions.
+  const start = colors ? Math.round : Math.floor;
+  const end = colors ? Math.round : Math.ceil;
 
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = colors?.text ?? '#000000';
   for (let r = 0; r < numModules; r++) {
     const row = QR_MATRIX[r];
     for (let c = 0; c < numModules; c++) {
       if (row[c] === '1') {
-        const mx = Math.floor(ix + c * cellSize);
-        const my = Math.floor(iy + r * cellSize);
-        const mw = Math.ceil(ix + (c + 1) * cellSize) - mx;
-        const mh = Math.ceil(iy + (r + 1) * cellSize) - my;
+        const mx = start(ix + c * cellSize);
+        const my = start(iy + r * cellSize);
+        const mw = end(ix + (c + 1) * cellSize) - mx;
+        const mh = end(iy + (r + 1) * cellSize) - my;
         ctx.fillRect(mx, my, mw, mh);
       }
     }
   }
 
-  ctx.strokeStyle = '#52463c';
-  ctx.lineWidth = Math.max(1, Math.round(isize / 64));
-  ctx.strokeRect(ix, iy, isize, isize);
+  if (!colors) {
+    ctx.strokeStyle = '#52463c';
+    ctx.lineWidth = Math.max(1, Math.round(isize / 64));
+    ctx.strokeRect(ix, iy, isize, isize);
+  }
   ctx.restore();
 };

@@ -680,6 +680,10 @@ export class OverlayRenderer {
 
     // Reset filter for HUD
     ctx.filter = 'none';
+    const cardPalette =
+      options.telemetryStyle === 'cards'
+        ? (options.cardPalette ?? DEFAULT_CARD_PALETTE)
+        : undefined;
 
     // 2. Bottom HUD Bar
     if (hasBottomHud) {
@@ -695,8 +699,8 @@ export class OverlayRenderer {
       ctx.fillStyle =
         style === 'studio'
           ? '#000'
-          : style === 'cards'
-            ? (options.cardPalette ?? DEFAULT_CARD_PALETTE).background
+          : cardPalette
+            ? cardPalette.background
             : style === 'strip'
               ? '#112326'
               : grad;
@@ -1166,11 +1170,11 @@ export class OverlayRenderer {
       if (options.qr) {
         const qrX1 = outW - qrPadR - qrPx;
         const qrY1 = hudY + Math.round(10 * scale);
-        drawQRCode(ctx, qrX1, qrY1, qrPx);
+        drawQRCode(ctx, qrX1, qrY1, qrPx, cardPalette);
 
         // Watermark text below QR code
         ctx.save();
-        ctx.fillStyle = '#8a7c72';
+        ctx.fillStyle = cardPalette?.text ?? '#8a7c72';
         ctx.font = `600 ${Math.max(9, Math.round(11 * scale))}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
@@ -1185,8 +1189,7 @@ export class OverlayRenderer {
       const qy1 = outH - Math.round(28 * scale) - qrPx;
 
       ctx.save();
-      // Semi-transparent dark card background over video
-      ctx.fillStyle = 'rgba(8, 11, 16, 0.75)';
+      ctx.fillStyle = cardPalette?.background ?? 'rgba(8, 11, 16, 0.75)';
       ctx.beginPath();
       ctx.roundRect(
         qx1 - Math.round(6 * scale),
@@ -1197,9 +1200,9 @@ export class OverlayRenderer {
       );
       ctx.fill();
 
-      drawQRCode(ctx, qx1, qy1, qrPx);
+      drawQRCode(ctx, qx1, qy1, qrPx, cardPalette);
 
-      ctx.fillStyle = '#ded4ca';
+      ctx.fillStyle = cardPalette?.text ?? '#ded4ca';
       ctx.font = `600 ${Math.max(9, Math.round(11 * scale))}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
