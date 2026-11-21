@@ -178,12 +178,12 @@ export const drawRoadsterCockpit = (
   drawFastener(ctx, unitPanelX + 23 * scale, top + height - 12 * scale, scale);
   drawFastener(ctx, unitPanelRight - 23 * scale, top + height - 12 * scale, scale);
 
-  const portraitX = right - 119 * scale;
-  const portraitY = top + 31 * scale;
-  bevel(ctx, portraitX, portraitY, 101 * scale, 126 * scale, scale);
-  drawRailPlate(ctx, portraitX + 16 * scale, portraitY + 7 * scale, scale, '#e5ae51');
-  drawFastener(ctx, portraitX + 11 * scale, portraitY + 111 * scale, scale);
-  drawFastener(ctx, portraitX + 90 * scale, portraitY + 111 * scale, scale);
+  const portraitX = right - 125 * scale;
+  const portraitY = top + 24 * scale;
+  bevel(ctx, portraitX, portraitY, 118 * scale, 136 * scale, scale);
+  drawRailPlate(ctx, portraitX + 24 * scale, portraitY + 7 * scale, scale, '#e5ae51');
+  drawFastener(ctx, portraitX + 11 * scale, portraitY + 126 * scale, scale);
+  drawFastener(ctx, portraitX + 107 * scale, portraitY + 126 * scale, scale);
   if (!art?.naturalWidth) {
     ctx.restore();
     return;
@@ -199,11 +199,11 @@ export const drawRoadsterCockpit = (
     144 * scale,
     43 * scale,
   );
-  const screenX = portraitX + 7 * scale;
-  const screenY = portraitY + 28 * scale;
+  const screenX = portraitX + 5 * scale;
+  const screenY = portraitY + 23 * scale;
   ctx.fillStyle = '#303a3d';
-  ctx.fillRect(screenX - 2 * scale, screenY - 2 * scale, 91 * scale, 80 * scale);
-  ctx.drawImage(art, 1368, 657, 257, 224, screenX, screenY, 87 * scale, 76 * scale);
+  ctx.fillRect(screenX - 2 * scale, screenY - 2 * scale, 112 * scale, 98 * scale);
+  ctx.drawImage(art, 1368, 657, 257, 224, screenX, screenY, 108 * scale, 94 * scale);
   ctx.restore();
 };
 
