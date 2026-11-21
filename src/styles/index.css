@@ -195,3 +195,18 @@
   }
 }
 
+
+@media (prefers-reduced-motion: no-preference) {
+  #app:not(:empty) {
+    animation: preview-entrance 300ms ease;
+  }
+
+  @keyframes preview-entrance {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
