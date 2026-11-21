@@ -76,6 +76,7 @@
   "encode_unsupported": "Dieser Browser kann Videos mit der gewählten Auflösung und Bildrate nicht kodieren. Wähle eine niedrigere Auflösung.",
   "error_empty_output": "Die erzeugte Videodatei ist leer.",
   "error_export_cancelled": "Videoexport wurde abgebrochen.",
+  "error_export_finalize_timeout": "Der Videoencoder hat den Vorgang nicht rechtzeitig abgeschlossen.",
   "error_face_analysis_frame": "Frame für Gesichtsanalyse nicht verfügbar: {0}, {1}s. Export abgebrochen, statt ohne Mosaik zu speichern. ({2})",
   "error_no_frames": "Es wurden keine Videoframes kodiert.",
   "est_size_prefix": "Geschätzte Größe: ~",

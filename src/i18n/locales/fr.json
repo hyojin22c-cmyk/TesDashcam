@@ -76,6 +76,7 @@
   "encode_unsupported": "Ce navigateur ne peut pas encoder la vidéo à la résolution et à la fréquence d'images choisies. Essayez une résolution plus basse.",
   "error_empty_output": "Le fichier vidéo généré est vide.",
   "error_export_cancelled": "L’exportation vidéo a été annulée.",
+  "error_export_finalize_timeout": "L’encodeur vidéo n’a pas terminé à temps.",
   "error_face_analysis_frame": "Impossible de préparer une image pour l’analyse des visages : {0}, {1}s. Exportation interrompue pour éviter un enregistrement sans mosaïque. ({2})",
   "error_no_frames": "Aucune image vidéo n’a été encodée.",
   "est_size_prefix": "Taille estimée : ~",

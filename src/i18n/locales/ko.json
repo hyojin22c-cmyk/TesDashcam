@@ -76,6 +76,7 @@
   "encode_unsupported": "이 브라우저는 선택한 해상도와 프레임 속도로 영상을 만들 수 없습니다. 더 낮은 해상도를 골라 보세요.",
   "error_empty_output": "생성된 비디오 파일 데이터가 비어 있습니다.",
   "error_export_cancelled": "비디오 내보내기가 취소되었습니다.",
+  "error_export_finalize_timeout": "비디오 인코더가 제한 시간 내에 작업을 완료하지 못했습니다.",
   "error_face_analysis_frame": "얼굴 분석용 영상을 준비하지 못했습니다: {0}, {1}초. 모자이크 없이 저장하지 않고 내보내기를 중단합니다. ({2})",
   "error_no_frames": "인코딩된 비디오 프레임이 없습니다.",
   "est_size_prefix": "예상 크기: 약 ",

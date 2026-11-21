@@ -76,6 +76,7 @@
   "encode_unsupported": "This browser can't encode video at the selected resolution and frame rate. Try a lower resolution.",
   "error_empty_output": "The generated video file is empty.",
   "error_export_cancelled": "Video export was cancelled.",
+  "error_export_finalize_timeout": "The video encoder did not finish in time.",
   "error_face_analysis_frame": "Could not prepare a frame for face analysis: {0}, {1}s. Export stopped rather than saving without the mosaic. ({2})",
   "error_no_frames": "No video frames were encoded.",
   "est_size_prefix": "Est. Size: ~",

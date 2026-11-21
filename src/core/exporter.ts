@@ -28,6 +28,47 @@ const fastYield = (): Promise<void> => {
   });
 };
 
+const flushVideoEncoder = (encoder: VideoEncoder, signal: AbortSignal): Promise<void> => {
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = () => {
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', onAbort);
+      document.removeEventListener('visibilitychange', updateTimeout);
+      encoder.removeEventListener('dequeue', updateTimeout);
+    };
+    const onAbort = () => {
+      cleanup();
+      reject(signal.reason);
+    };
+    const updateTimeout = () => {
+      clearTimeout(timeout);
+      if (document.hidden) return;
+      timeout = setTimeout(() => {
+        if (document.hidden) return;
+        cleanup();
+        reject(new DOMException(i18n.t('error_export_finalize_timeout'), 'OperationError'));
+      }, 15_000);
+    };
+    signal.addEventListener('abort', onAbort);
+    document.addEventListener('visibilitychange', updateTimeout);
+    encoder.addEventListener('dequeue', updateTimeout);
+    updateTimeout();
+    // Safari can leave flush pending when the hardware encoder is suspended.
+    encoder.flush().then(
+      () => {
+        cleanup();
+        resolve();
+      },
+      (error: unknown) => {
+        cleanup();
+        reject(error);
+      },
+    );
+  });
+};
+
 export interface ExportClipSegment {
   clip: ClipItem;
   startSec: number;
@@ -915,7 +956,7 @@ export class WebCodecsExporter {
               outputFrameCount++;
               currentSourceSec += frameStepSec;
 
-              const progressPct = Math.min(100, Math.round((outputFrameCount / totalFrames) * 100));
+              const progressPct = Math.min(99, Math.round((outputFrameCount / totalFrames) * 100));
               config.onProgress(progressPct, segIdx + 1, config.segments.length);
 
               // Yield event loop without triggering background timer throttling in hidden tabs
@@ -950,10 +991,9 @@ export class WebCodecsExporter {
         throw new Error(i18n.t('error_no_frames'));
       }
 
-      config.onProgress(100, config.segments.length, config.segments.length);
-
       if (encoderError) throw encoderError;
-      await videoEncoder.flush();
+      await waitForVisibleDocument(signal);
+      await flushVideoEncoder(videoEncoder, signal);
       signal.throwIfAborted();
 
       if (encoderError) {
@@ -1037,7 +1077,9 @@ export class WebCodecsExporter {
       if (!buffer || buffer.byteLength === 0) {
         throw new Error(i18n.t('error_empty_output'));
       }
-      return new Blob([buffer], { type: 'video/mp4' });
+      const blob = new Blob([buffer], { type: 'video/mp4' });
+      config.onProgress(100, config.segments.length, config.segments.length);
+      return blob;
     } finally {
       if (videoEncoder && videoEncoder.state !== 'closed') {
         videoEncoder.close();

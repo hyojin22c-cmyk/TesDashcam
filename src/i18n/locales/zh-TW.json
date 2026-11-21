@@ -76,6 +76,7 @@
   "encode_unsupported": "此瀏覽器無法以所選解析度與影格率編碼影片。請嘗試較低的解析度。",
   "error_empty_output": "產生的影片檔案是空的。",
   "error_export_cancelled": "影片匯出已取消。",
+  "error_export_finalize_timeout": "影片編碼器未能在時限內完成。",
   "error_face_analysis_frame": "無法準備人臉分析影格：{0}，{1}秒。已停止匯出，不會儲存未遮蔽的影片。({2})",
   "error_no_frames": "沒有已編碼的影片影格。",
   "est_size_prefix": "預估容量: 約 ",

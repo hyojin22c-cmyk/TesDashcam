@@ -76,6 +76,7 @@
   "encode_unsupported": "此浏览器无法以所选分辨率和帧率编码视频。请尝试更低的分辨率。",
   "error_empty_output": "生成的视频文件为空。",
   "error_export_cancelled": "视频导出已取消。",
+  "error_export_finalize_timeout": "视频编码器未能在规定时间内完成。",
   "error_face_analysis_frame": "无法准备人脸分析帧：{0}，{1}秒。已停止导出，不会保存未打码的视频。({2})",
   "error_no_frames": "没有已编码的视频帧。",
   "est_size_prefix": "预估体积: 约 ",

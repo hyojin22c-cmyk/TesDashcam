@@ -76,6 +76,7 @@
   "encode_unsupported": "Este navegador no puede codificar el vídeo con la resolución y la velocidad de fotogramas elegidas. Prueba una resolución más baja.",
   "error_empty_output": "El archivo de vídeo generado está vacío.",
   "error_export_cancelled": "Se canceló la exportación del vídeo.",
+  "error_export_finalize_timeout": "El codificador de vídeo no terminó a tiempo.",
   "error_face_analysis_frame": "No se pudo preparar un fotograma para analizar rostros: {0}, {1}s. Se detuvo la exportación para evitar guardar sin mosaico. ({2})",
   "error_no_frames": "No se codificó ningún fotograma de vídeo.",
   "est_size_prefix": "Tamaño estimado: ~",

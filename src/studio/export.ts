@@ -234,6 +234,10 @@ export const startExport = async ({ confirmed = false } = {}) => {
     setStudio({ exportStatus: { key: 'status_success' } });
     if (isAndroid()) toast.success(i18n.t('export_success_alert'), { duration: 10_000 });
   } catch (error) {
+    if (signal.aborted) {
+      setStudio({ exportStatus: null });
+      return;
+    }
     console.error('[Export Error]', error);
     const message = error instanceof Error ? error.message : String(error);
     setStudio({ exportStatus: { key: 'status_error', detail: message } });

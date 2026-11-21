@@ -76,6 +76,7 @@
   "encode_unsupported": "このブラウザーでは選択した解像度とフレームレートで動画を書き出せません。低い解像度を選んでください。",
   "error_empty_output": "生成された動画ファイルが空です。",
   "error_export_cancelled": "動画の書き出しを中止しました。",
+  "error_export_finalize_timeout": "ビデオエンコーダーが制限時間内に処理を完了しませんでした。",
   "error_face_analysis_frame": "顔解析用のフレームを準備できませんでした: {0}、{1}秒。モザイクなしでは保存せず、書き出しを中止します。({2})",
   "error_no_frames": "エンコードされた動画フレームがありません。",
   "est_size_prefix": "予想サイズ: 約 ",
