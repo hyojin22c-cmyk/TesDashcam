@@ -1,5 +1,5 @@
 import { For, Show } from '@jellybrick/react-solid-flow';
-import { ChevronDown, Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
+import { ChevronDown, Pause, Play, SkipBack, SkipForward } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -116,14 +116,8 @@ const RangeControls = () => {
       <Button variant="solid" size="sm" title={t('tip_set_out')} onClick={setOutPoint}>
         {plainLabel(t('btn_out'))}
       </Button>
-      <Button
-        variant="quiet"
-        size="icon-sm"
-        aria-label={t('tip_reset_range')}
-        title={t('tip_reset_range')}
-        onClick={resetRange}
-      >
-        <RotateCcw />
+      <Button variant="solid" size="sm" title={t('tip_reset_range')} onClick={resetRange}>
+        {plainLabel(t('btn_reset'))}
       </Button>
       <span className="min-w-0 truncate pl-1 text-body text-muted-foreground">{summary}</span>
     </div>
