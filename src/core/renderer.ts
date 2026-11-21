@@ -2,6 +2,7 @@
 import { OpenStreetMapTileLoader } from './map-loader';
 import { drawQRCode } from './qr-code';
 import { correctRearFrame } from './rear-correction';
+import { drawRoadsterCockpit, ROADSTER_HUD_HEIGHT } from './roadster-cockpit';
 import { drawStudioTelemetry } from './studio-telemetry';
 import {
   type CardPalette,
@@ -341,8 +342,9 @@ export class OverlayRenderer {
 
   static computeTelemetryLayout(options: RenderOptions, outW = 1920, outH = 1080) {
     const scale = outW / 1920.0;
+    const roadster = options.telemetryStyle === 'roadster';
     const hasBottomHud =
-      options.map ||
+      (roadster ? options.qr : options.map) ||
       options.timestamp ||
       options.speed ||
       options.fsd ||
@@ -350,8 +352,10 @@ export class OverlayRenderer {
       options.steering ||
       options.pedal;
     const bottomH = hasBottomHud ? Math.round(180 * scale) : 0;
-    const frontH = outH - bottomH;
-    const mapW = options.map ? Math.round(410 * scale) : 0;
+    const cockpitH = roadster ? Math.round(ROADSTER_HUD_HEIGHT * scale) : 0;
+    const hudY = outH - bottomH;
+    const frontH = hudY - cockpitH;
+    const mapW = !roadster && options.map ? Math.round(410 * scale) : 0;
     const offsetX = mapW;
     const availW = outW - offsetX;
 
@@ -374,7 +378,8 @@ export class OverlayRenderer {
     const activeCols = order
       .filter((k) => options[k as keyof RenderOptions])
       .map((k) => {
-        const wideMode = options.telemetryStyle === 'studio' || options.newDriveModeLabels;
+        const wideMode =
+          roadster || options.telemetryStyle === 'studio' || options.newDriveModeLabels;
         const width = wideMode && k === 'fsd' ? 232 : COL_WIDTH_BASE[k];
         return [k, Math.round(width * scale)] as [string, number];
       });
@@ -452,7 +457,7 @@ export class OverlayRenderer {
       : Object.entries(colBoxMap).map(([key, [x, width]]) => ({
           key,
           x: offsetX + x,
-          y: frontH,
+          y: hudY,
           width,
           height: bottomH,
         }));
@@ -464,6 +469,7 @@ export class OverlayRenderer {
       offsetX,
       availW,
       frontH,
+      cockpitH,
       bottomH,
       qrPx,
       qrPadR,
@@ -496,7 +502,7 @@ export class OverlayRenderer {
         : 'none';
     }
 
-    const { boxes, colBoxMap, fsdDividers, offsetX, frontH, bottomH, qrPx, qrPadR } =
+    const { boxes, colBoxMap, fsdDividers, offsetX, frontH, cockpitH, bottomH, qrPx, qrPadR } =
       this.computeTelemetryLayout(options, outW, outH);
     const rearCrop = options.rear_crop ? REAR_BOTTOM_CROP : 0;
     const hasBottomHud = bottomH > 0;
@@ -704,6 +710,9 @@ export class OverlayRenderer {
 
     // Reset filter for HUD
     if (canvasFilter) ctx.filter = 'none';
+    if (options.telemetryStyle === 'roadster') {
+      drawRoadsterCockpit(ctx, outW, frontH, cockpitH, telemetry, options.map);
+    }
     const cardPalette =
       options.telemetryStyle === 'cards'
         ? (options.cardPalette ?? DEFAULT_CARD_PALETTE)
@@ -711,7 +720,7 @@ export class OverlayRenderer {
 
     // 2. Bottom HUD Bar
     if (hasBottomHud) {
-      const hudY = frontH;
+      const hudY = frontH + cockpitH;
       const hudW = outW;
 
       // Dark Navy Gradient Background (matching PC version: rgb(17,21,28) -> rgb(10,12,16))
@@ -761,7 +770,7 @@ export class OverlayRenderer {
         ctx.stroke();
       }
 
-      if (options.map && style && style !== 'classic') {
+      if (mapW > 0 && style && style !== 'classic') {
         ctx.save();
         ctx.font = `600 ${12 * scale}px sans-serif`;
         ctx.textAlign = 'left';
@@ -797,7 +806,7 @@ export class OverlayRenderer {
               signalScale,
             ),
         );
-      } else if (style === 'studio') {
+      } else if (style === 'studio' || style === 'roadster') {
         drawStudioTelemetry(
           ctx,
           colBoxMap,

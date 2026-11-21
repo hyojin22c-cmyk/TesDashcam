@@ -8,6 +8,7 @@ import { clampSegmentToMedia } from './clip-timing';
 import { RESOLUTIONS, type CameraKey } from './constants';
 import { resolveVideoEncoderConfig } from './encoder-config';
 import { OverlayRenderer, type RenderOptions } from './renderer';
+import { prepareRoadsterCockpit } from './roadster-cockpit';
 
 import type { RealTeslaSEIDecoder, TelemetryData } from './sei-decoder';
 
@@ -557,6 +558,7 @@ export class WebCodecsExporter {
   }
 
   async exportMultiClip(config: MultiClipExportConfig): Promise<Blob> {
+    if (config.options.telemetryStyle === 'roadster') await prepareRoadsterCockpit();
     this.signal = config.signal;
     config.signal.throwIfAborted();
 

@@ -133,17 +133,13 @@ export const zoomCameraAt = (clientX: number, clientY: number) => {
   if (!canvas || !point) return;
   const scale = canvas.width / 1920;
   const { options, activeClip } = getStudio();
-  const hasBottomHud =
-    options.map ||
-    options.timestamp ||
-    options.speed ||
-    options.fsd ||
-    options.turn_signal ||
-    options.steering ||
-    options.pedal;
-  const frontH = canvas.height - (hasBottomHud ? Math.round(180 * scale) : 0);
+  const { frontH, cockpitH } = OverlayRenderer.computeTelemetryLayout(
+    options,
+    canvas.width,
+    canvas.height,
+  );
   if (point.cy >= frontH) {
-    setTelemetryOrder(null);
+    if (point.cy >= frontH + cockpitH) setTelemetryOrder(null);
     return;
   }
   if (options.layout === 'single') {

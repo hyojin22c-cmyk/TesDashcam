@@ -5,7 +5,7 @@ import { DEFAULT_TELEMETRY } from './sei-decoder';
 import type { RenderOptions } from './renderer';
 import type { TelemetryData } from './sei-decoder';
 
-export const TELEMETRY_STYLES = ['classic', 'studio', 'cards', 'strip'] as const;
+export const TELEMETRY_STYLES = ['classic', 'studio', 'cards', 'strip', 'roadster'] as const;
 export type TelemetryStyle = (typeof TELEMETRY_STYLES)[number];
 
 export const driveModeLabel = (key: string, label: string, useNewLabels?: boolean) => {

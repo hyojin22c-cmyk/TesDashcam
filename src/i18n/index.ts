@@ -105,4 +105,11 @@ export const setLanguage = async (lang: SupportedLang) => {
     localStorage.setItem(STORAGE_KEY, lang);
   } catch {}
   await i18n.changeLanguage(lang);
+  if (typeof window !== 'undefined' && window.location.href) {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('lang')) {
+      url.searchParams.set('lang', lang);
+      window.history.replaceState(window.history.state, '', url);
+    }
+  }
 };
