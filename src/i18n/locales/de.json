@@ -231,6 +231,7 @@
   "status_preparing": "Kodierung wird vorbereitet… ({0} Abschnitte)",
   "status_ready": "Bereit…",
   "status_success": "Video erfolgreich gerendert!",
+  "switch_to_original": "Ursprüngliches Design öffnen",
   "tab_clips": "Clips",
   "tab_export": "Export",
   "tab_export_label": "Export",

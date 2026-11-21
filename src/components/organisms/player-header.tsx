@@ -2,7 +2,6 @@ import { Show } from '@jellybrick/react-solid-flow';
 import { CircleHelp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { BrandLogo } from '@/components/atoms/brand-logo';
 import { Button } from '@/components/atoms/button';
 import { Swap } from '@/components/atoms/swap';
 import { formatFolderGroup } from '@/core/clip-scanner';
@@ -13,6 +12,7 @@ import { formatTimecode } from '@/studio/range';
 import { useStudio } from '@/studio/store';
 
 import { LayoutMenu } from './layout-menu';
+import { StudioBrandLink } from './studio-brand-link';
 
 const ClipTitle = ({ compact }: { compact: boolean }) => {
   const { t } = useTranslation();
@@ -48,7 +48,7 @@ export const PlayerHeader = ({ className }: { className?: string }) => {
     <header className={cn('flex min-w-0 items-center justify-between gap-4', className)}>
       <div className="flex min-w-0 items-center gap-3">
         <Show when={compact}>
-          <BrandLogo className="size-7" />
+          <StudioBrandLink logoClassName="size-7" />
         </Show>
         <Swap id={clipId ?? 'none'} className="min-w-0">
           <ClipTitle compact={compact} />

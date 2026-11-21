@@ -231,6 +231,7 @@
   "status_preparing": "エンコード準備中... (合計 {0}区間)",
   "status_ready": "待機中...",
   "status_success": "ビデオレンダリングが正常に完了しました！",
+  "switch_to_original": "従来のデザインを開く",
   "tab_clips": "クリップ",
   "tab_export": "エクスポート",
   "tab_export_label": "設定・出力",

@@ -231,6 +231,7 @@
   "status_preparing": "Preparando codificación… ({0} segmentos)",
   "status_ready": "Listo…",
   "status_success": "¡Renderizado del vídeo completado!",
+  "switch_to_original": "Abrir el diseño original",
   "tab_clips": "Clips",
   "tab_export": "Exportar",
   "tab_export_label": "Exportar",

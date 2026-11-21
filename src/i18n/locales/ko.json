@@ -231,6 +231,7 @@
   "status_preparing": "인코딩 준비 중... (총 {0}개 파일 구간)",
   "status_ready": "대기 중...",
   "status_success": "비디오 렌더링이 성공적으로 완료되었습니다!",
+  "switch_to_original": "기존 디자인 열기",
   "tab_clips": "클립 탐색",
   "tab_export": "내보내기",
   "tab_export_label": "설정·추출",

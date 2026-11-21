@@ -231,6 +231,7 @@
   "status_preparing": "正在准备编码... (共 {0} 个片段区间)",
   "status_ready": "就绪...",
   "status_success": "视频渲染已成功完成！",
+  "switch_to_original": "打开原版设计",
   "tab_clips": "片段浏览",
   "tab_export": "导出",
   "tab_export_label": "设置·导出",

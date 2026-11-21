@@ -231,6 +231,7 @@
   "status_preparing": "Préparation de l’encodage… ({0} segments)",
   "status_ready": "Prêt…",
   "status_success": "Rendu vidéo terminé !",
+  "switch_to_original": "Ouvrir le design d’origine",
   "tab_clips": "Clips",
   "tab_export": "Exporter",
   "tab_export_label": "Exporter",

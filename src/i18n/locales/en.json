@@ -231,6 +231,7 @@
   "status_preparing": "Preparing encode... ({0} segments)",
   "status_ready": "Ready...",
   "status_success": "Video rendering completed successfully!",
+  "switch_to_original": "Open original design",
   "tab_clips": "Clips",
   "tab_export": "Export",
   "tab_export_label": "Export",
