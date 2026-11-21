@@ -3,7 +3,7 @@ import { create } from 'zustand';
 
 import { DEFAULT_RESOLUTION, type ResolutionName } from '@/core/constants';
 import { DEFAULT_RENDER_OPTIONS, type RenderOptions } from '@/core/renderer';
-import { TELEMETRY_STYLES } from '@/core/telemetry-style';
+import { DEFAULT_CARD_PALETTE, TELEMETRY_STYLES } from '@/core/telemetry-style';
 
 import type { ClipItem, FolderGroup } from '@/core/clip-scanner';
 import type { TranslationKey } from '@/i18n';
@@ -180,7 +180,8 @@ export const setStudio = useStudio.setState;
 
 export const setOption = <K extends keyof RenderOptions>(key: K, value: RenderOptions[K]) => {
   setStudio((state) => ({ options: { ...state.options, [key]: value } }));
-  if (key === 'telemetryStyle') writeStorage(TELEMETRY_STYLE_KEY, String(value));
+  if (key === 'telemetryStyle' && typeof value === 'string')
+    writeStorage(TELEMETRY_STYLE_KEY, value);
   if (key === 'newDriveModeLabels') writeStorage(DRIVE_MODE_LABELS_KEY, value ? '1' : '0');
 };
 
@@ -198,7 +199,14 @@ export const applyStudioTheme = (theme = getStudio().theme) => {
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.classList.toggle('dark', !theme.startsWith('paper'));
-  const color = getComputedStyle(root).getPropertyValue('--background').trim();
+  const styles = getComputedStyle(root);
+  const color = styles.getPropertyValue('--background').trim();
+  const cardPalette = { ...DEFAULT_CARD_PALETTE };
+  for (const key of Object.keys(cardPalette) as (keyof typeof cardPalette)[]) {
+    const token = key === 'speedCard' ? 'speed-card' : key;
+    cardPalette[key] = styles.getPropertyValue(`--hud-card-${token}`).trim() || cardPalette[key];
+  }
+  setOption('cardPalette', cardPalette);
   if (color) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
 };
 

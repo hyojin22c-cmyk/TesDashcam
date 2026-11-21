@@ -3,7 +3,9 @@ import { drawQRCode } from './qr-code';
 import { correctRearFrame } from './rear-correction';
 import { drawStudioTelemetry } from './studio-telemetry';
 import {
+  type CardPalette,
   computeModernTelemetryBoxes,
+  DEFAULT_CARD_PALETTE,
   driveModeLabel,
   drawModernTelemetry,
   TELEMETRY_KEYS,
@@ -34,6 +36,7 @@ export interface RenderOptions {
   playbackSpeed: number;
   exportSpeed?: number;
   telemetryStyle?: TelemetryStyle;
+  cardPalette?: CardPalette;
   newDriveModeLabels?: boolean;
   telemetryOrder?: string[];
   draggingCol?: string | null;
@@ -45,7 +48,7 @@ export const COL_WIDTH_BASE: Record<string, number> = {
   pedal: 176,
   steering: 118,
   turn_signal: 118,
-  fsd: 156,
+  fsd: 232,
 };
 
 export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
@@ -698,7 +701,7 @@ export class OverlayRenderer {
         style === 'studio'
           ? '#000'
           : style === 'cards'
-            ? '#13191d'
+            ? (options.cardPalette ?? DEFAULT_CARD_PALETTE).background
             : style === 'strip'
               ? '#112326'
               : grad;
@@ -756,11 +759,20 @@ export class OverlayRenderer {
           telemetry,
           baseDateStr,
           currentTimeSec,
-          frameIdx,
-          fps,
           options,
           scale,
           (x, y, angle, size) => this.drawRotatedSteering(ctx, x, y, angle, scale, size / scale),
+          (x, y, signalScale) =>
+            this.drawTurnSignals(
+              ctx,
+              x,
+              y,
+              telemetry.left_blinker,
+              telemetry.right_blinker,
+              frameIdx,
+              fps,
+              signalScale,
+            ),
         );
       } else if (style === 'studio') {
         drawStudioTelemetry(
@@ -1113,7 +1125,7 @@ export class OverlayRenderer {
           const startY = hdrY;
           const boxH = Math.round(27 * scale);
           const stepY = Math.round(31.5 * scale);
-          const boxW = Math.round(145 * scale);
+          const boxW = colBoxMap.fsd[1] - Math.round(11 * scale);
           const boxR = Math.max(3, Math.round(6 * scale));
 
           ctx.save();

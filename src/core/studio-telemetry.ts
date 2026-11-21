@@ -1,11 +1,9 @@
 import { clamp } from 'es-toolkit';
 
-import { driveModeLabel } from './telemetry-style';
+import { driveModeLabel, TELEMETRY_FONT } from './telemetry-style';
 
 import type { RenderOptions } from './renderer';
 import type { TelemetryData } from './sei-decoder';
-
-const FONT_FAMILY = '"Pretendard Variable", Pretendard, system-ui, sans-serif';
 
 const COLOR = {
   text: '#ffffff',
@@ -17,7 +15,7 @@ const COLOR = {
   danger: '#ff4e4e',
 };
 
-const font = (weight: number, px: number) => `${weight} ${Math.round(px)}px ${FONT_FAMILY}`;
+const font = (weight: number, px: number) => `${weight} ${Math.round(px)}px ${TELEMETRY_FONT}`;
 
 const COLUMN_CAPTIONS: Record<string, string> = {
   timestamp: 'Time',
@@ -319,7 +317,7 @@ export const drawStudioTelemetry = (
     const active = raw === 'FSD ACTIVE' ? 'FSD' : raw;
     const rowH = px(30);
     const step = px(36);
-    const rowW = px(145);
+    const rowW = colBoxMap.fsd[1] - px(11);
     const top = hudY + px(16);
 
     ctx.save();

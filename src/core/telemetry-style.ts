@@ -24,6 +24,20 @@ export const driveModeLabel = (key: string, label: string, useNewLabels?: boolea
   return label;
 };
 
+export const TELEMETRY_FONT = '"Pretendard Variable", Pretendard, system-ui, sans-serif';
+
+export const DEFAULT_CARD_PALETTE = {
+  background: '#2a2a2b',
+  surface: '#353536',
+  speedCard: '#293555',
+  text: '#ffffff',
+  muted: '#c2c2c2',
+  accent: '#226cff',
+  track: '#555556',
+};
+
+export type CardPalette = typeof DEFAULT_CARD_PALETTE;
+
 type TelemetryBox = { key: string; x: number; y: number; width: number; height: number };
 
 const CARD_WEIGHTS = [366, 314, 252, 246, 366, 346];
@@ -95,11 +109,10 @@ export const drawModernTelemetry = (
   telemetry: TelemetryData,
   baseDate: string,
   seconds: number,
-  frame: number,
-  fps: number,
   options: RenderOptions,
   scale: number,
   drawWheel: (x: number, y: number, angle: number, size: number) => void,
+  drawSignals: (x: number, y: number, scale: number) => void,
 ) => {
   const cards = options.telemetryStyle === 'cards';
   const present = telemetry !== DEFAULT_TELEMETRY;
@@ -108,11 +121,11 @@ export const drawModernTelemetry = (
   const [date, time] = timestampParts(baseDate, seconds);
   const mode = telemetry.ap_mode === 'FSD ACTIVE' ? 'FSD' : telemetry.ap_mode;
   const braking = telemetry.brake_applied || telemetry.brake_pct > 0;
+  const palette = options.cardPalette ?? DEFAULT_CARD_PALETTE;
   const text = '#f0f5ec';
-  const muted = cards ? '#40565c' : '#acceca';
-  const fg = cards ? '#102027' : text;
-  const accent = cards ? '#006955' : '#79efd5';
-  const blinkOn = Math.floor((frame / fps) * 3.5) % 2 === 0;
+  const muted = cards ? palette.muted : '#acceca';
+  const fg = cards ? palette.text : text;
+  const accent = cards ? palette.accent : '#79efd5';
   const renderText = (
     value: string,
     x: number,
@@ -123,7 +136,7 @@ export const drawModernTelemetry = (
     bold = false,
     numeric = false,
   ) => {
-    ctx.font = `${bold ? 700 : 500} ${size * scale}px ${numeric ? 'monospace' : 'sans-serif'}`;
+    ctx.font = `${bold ? 700 : 500} ${size * scale}px ${cards ? TELEMETRY_FONT : numeric ? 'monospace' : 'sans-serif'}`;
     ctx.fillStyle = color;
     ctx.fillText(value, x, y, width);
   };
@@ -139,7 +152,7 @@ export const drawModernTelemetry = (
     const titleY = y + (large ? 31 : 19) * scale;
     const valueY = y + (large ? 99 : 50) * scale;
     if (cards || options.draggingCol === key) {
-      ctx.fillStyle = cards ? (key === 'speed' ? '#c2efdc' : '#e5ebe7') : '#294345';
+      ctx.fillStyle = cards ? (key === 'speed' ? palette.speedCard : palette.surface) : '#294345';
       ctx.beginPath();
       ctx.roundRect(x, y, width, height, 16 * scale);
       ctx.fill();
@@ -222,25 +235,7 @@ export const drawModernTelemetry = (
         break;
       }
       case 'turn_signal':
-        if (!present) renderText('—', left, valueY, usable, 32, fg);
-        else {
-          renderText(
-            telemetry.left_blinker ? '◀' : '—',
-            left,
-            valueY,
-            usable / 2,
-            large ? 40 : 28,
-            telemetry.left_blinker && blinkOn ? accent : muted,
-          );
-          renderText(
-            telemetry.right_blinker ? '▶' : '—',
-            left + usable / 2,
-            valueY,
-            usable / 2,
-            large ? 40 : 28,
-            telemetry.right_blinker && blinkOn ? accent : muted,
-          );
-        }
+        drawSignals(x + width / 2, valueY, Math.min((large ? 1 : 0.78) * scale, usable / 100));
         break;
       case 'pedal': {
         const values = present
@@ -248,7 +243,7 @@ export const drawModernTelemetry = (
           : '—';
         renderText(values, left, valueY, usable, large ? 38 : 28, fg, true);
         if (cards && present) {
-          ctx.fillStyle = '#728280';
+          ctx.fillStyle = palette.track;
           ctx.fillRect(left, y + 131 * scale, usable, 5 * scale);
           ctx.fillStyle = accent;
           ctx.fillRect(
