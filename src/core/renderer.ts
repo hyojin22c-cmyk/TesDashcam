@@ -397,7 +397,17 @@ export class OverlayRenderer {
     const colBoxMap: Record<string, [number, number]> = {};
     const fsdDividers: number[] = [];
 
-    if (!modern && numActive > 0) {
+    if (roadster && numActive > 0) {
+      const availableWidth = colsAvailW - Math.round(14 * scale);
+      let baseWidth = 0;
+      let boundary = 0;
+      for (const [key, width] of activeCols) {
+        baseWidth += width;
+        const nextBoundary = Math.round((baseWidth / totalColW) * availableWidth);
+        colBoxMap[key] = [boundary, nextBoundary - boundary];
+        boundary = nextBoundary;
+      }
+    } else if (!modern && numActive > 0) {
       const fsdIndices = activeCols.map(([k], i) => (k === 'fsd' ? i : -1)).filter((i) => i >= 0);
       let numDivs = 0;
       if (fsdIndices.length > 0 && numActive >= 2) {
@@ -408,7 +418,7 @@ export class OverlayRenderer {
       const divUnit = Math.round(12 * scale);
       const divExtra = numDivs * divUnit;
 
-      if (!roadster && options.map && numActive === 6) {
+      if (options.map && numActive === 6) {
         const sidePadL = Math.round(32 * scale);
         const sidePadR = Math.round(20 * scale);
         const innerGap = Math.max(

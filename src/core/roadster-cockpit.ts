@@ -270,7 +270,7 @@ export const drawRoadsterTelemetry = (
         const step = (w - 24) / 10;
         for (let i = 0; i < 10; i++) {
           ctx.fillStyle = telemetry.speed_kmh > i * 15 ? DISPLAY_GREEN : DISPLAY_DIM;
-          ctx.fillRect(12 + step * i, 135, step - 3, 10);
+          ctx.fillRect(13.5 + step * i, 135, step - 3, 10);
         }
         break;
       }
@@ -317,7 +317,8 @@ export const drawRoadsterTelemetry = (
       }
       case 'fsd': {
         const mode = telemetry.ap_mode || 'MANUAL';
-        display(driveModeLabel(mode, mode, newDriveModeLabels), 96, 20);
+        const modeKey = mode === 'FSD ACTIVE' ? 'FSD' : mode;
+        display(driveModeLabel(modeKey, mode, newDriveModeLabels), 96, 20);
         break;
       }
     }
