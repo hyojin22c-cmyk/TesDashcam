@@ -2,7 +2,7 @@
 import { OpenStreetMapTileLoader } from './map-loader';
 import { drawQRCode } from './qr-code';
 import { correctRearFrame } from './rear-correction';
-import { drawRoadsterCockpit, ROADSTER_HUD_HEIGHT } from './roadster-cockpit';
+import { drawRoadsterCockpit, ROADSTER_DECOR_WIDTH } from './roadster-cockpit';
 import { drawStudioTelemetry } from './studio-telemetry';
 import {
   type CardPalette,
@@ -344,7 +344,8 @@ export class OverlayRenderer {
     const scale = outW / 1920.0;
     const roadster = options.telemetryStyle === 'roadster';
     const hasBottomHud =
-      (roadster ? options.qr : options.map) ||
+      roadster ||
+      options.map ||
       options.timestamp ||
       options.speed ||
       options.fsd ||
@@ -352,10 +353,8 @@ export class OverlayRenderer {
       options.steering ||
       options.pedal;
     const bottomH = hasBottomHud ? Math.round(180 * scale) : 0;
-    const cockpitH = roadster ? Math.round(ROADSTER_HUD_HEIGHT * scale) : 0;
-    const hudY = outH - bottomH;
-    const frontH = hudY - cockpitH;
-    const mapW = !roadster && options.map ? Math.round(410 * scale) : 0;
+    const frontH = outH - bottomH;
+    const mapW = options.map ? Math.round((roadster ? 330 : 410) * scale) : 0;
     const offsetX = mapW;
     const availW = outW - offsetX;
 
@@ -363,7 +362,10 @@ export class OverlayRenderer {
     const qrPx = Math.round(140 * scale);
     const qrPadR = Math.round(16 * scale);
     const qrZoneW = options.qr ? qrPx + qrPadR + Math.round(18 * scale) : 0;
-    const colsAvailW = Math.max(Math.round(200 * scale), availW - qrZoneW);
+    const decorRight = outW - qrZoneW;
+    const decorW = roadster ? Math.round(ROADSTER_DECOR_WIDTH * scale) : 0;
+    const colsAvailW = Math.max(Math.round(200 * scale), availW - qrZoneW - decorW);
+    const telemetryScale = roadster ? 0.85 * scale : scale;
 
     const modern = options.telemetryStyle === 'strip' || options.telemetryStyle === 'cards';
     const defaults = modern
@@ -381,7 +383,7 @@ export class OverlayRenderer {
         const wideMode =
           roadster || options.telemetryStyle === 'studio' || options.newDriveModeLabels;
         const width = wideMode && k === 'fsd' ? 232 : COL_WIDTH_BASE[k];
-        return [k, Math.round(width * scale)] as [string, number];
+        return [k, Math.round(width * telemetryScale)] as [string, number];
       });
 
     const numActive = activeCols.length;
@@ -401,7 +403,7 @@ export class OverlayRenderer {
       const divUnit = Math.round(12 * scale);
       const divExtra = numDivs * divUnit;
 
-      if (options.map && numActive === 6) {
+      if (!roadster && options.map && numActive === 6) {
         const sidePadL = Math.round(32 * scale);
         const sidePadR = Math.round(20 * scale);
         const innerGap = Math.max(
@@ -457,7 +459,7 @@ export class OverlayRenderer {
       : Object.entries(colBoxMap).map(([key, [x, width]]) => ({
           key,
           x: offsetX + x,
-          y: hudY,
+          y: frontH,
           width,
           height: bottomH,
         }));
@@ -469,7 +471,8 @@ export class OverlayRenderer {
       offsetX,
       availW,
       frontH,
-      cockpitH,
+      decorRight,
+      telemetryScale,
       bottomH,
       qrPx,
       qrPadR,
@@ -502,8 +505,18 @@ export class OverlayRenderer {
         : 'none';
     }
 
-    const { boxes, colBoxMap, fsdDividers, offsetX, frontH, cockpitH, bottomH, qrPx, qrPadR } =
-      this.computeTelemetryLayout(options, outW, outH);
+    const {
+      boxes,
+      colBoxMap,
+      fsdDividers,
+      offsetX,
+      frontH,
+      decorRight,
+      telemetryScale,
+      bottomH,
+      qrPx,
+      qrPadR,
+    } = this.computeTelemetryLayout(options, outW, outH);
     const rearCrop = options.rear_crop ? REAR_BOTTOM_CROP : 0;
     const hasBottomHud = bottomH > 0;
     const mapW = options.map ? offsetX : 0;
@@ -710,9 +723,6 @@ export class OverlayRenderer {
 
     // Reset filter for HUD
     if (canvasFilter) ctx.filter = 'none';
-    if (options.telemetryStyle === 'roadster') {
-      drawRoadsterCockpit(ctx, outW, frontH, cockpitH, telemetry, options.map);
-    }
     const cardPalette =
       options.telemetryStyle === 'cards'
         ? (options.cardPalette ?? DEFAULT_CARD_PALETTE)
@@ -720,7 +730,7 @@ export class OverlayRenderer {
 
     // 2. Bottom HUD Bar
     if (hasBottomHud) {
-      const hudY = frontH + cockpitH;
+      const hudY = frontH;
       const hudW = outW;
 
       // Dark Navy Gradient Background (matching PC version: rgb(17,21,28) -> rgb(10,12,16))
@@ -738,6 +748,12 @@ export class OverlayRenderer {
               ? '#112326'
               : grad;
       ctx.fillRect(0, hudY, hudW, bottomH);
+
+      if (style === 'roadster') {
+        ctx.fillStyle = '#5d6867';
+        ctx.fillRect(0, hudY, outW, Math.max(1, 2 * scale));
+        drawRoadsterCockpit(ctx, decorRight, hudY, bottomH, scale);
+      }
 
       if (!style || style === 'classic') {
         // Top separator line
@@ -811,9 +827,9 @@ export class OverlayRenderer {
           ctx,
           colBoxMap,
           offsetX,
-          hudY,
-          bottomH,
-          scale,
+          hudY + Math.round((scale - telemetryScale) * 90),
+          Math.round(180 * telemetryScale),
+          telemetryScale,
           telemetry,
           baseDateStr,
           currentTimeSec,
