@@ -9,9 +9,10 @@ import { PANEL_TABS } from './panel-tabs';
 
 const selectTab = (tab: PanelTab) => {
   const { panelTab, explorerExpanded } = getStudio();
-  if (tab !== 'clips') setStudio({ panelTab: tab, explorerExpanded: false });
-  else
-    setStudio({ panelTab: tab, explorerExpanded: panelTab === 'clips' ? !explorerExpanded : true });
+  setStudio({
+    panelTab: tab,
+    explorerExpanded: tab === 'clips' && panelTab === 'clips' && !explorerExpanded,
+  });
 };
 
 export const MobileTabBar = () => {
