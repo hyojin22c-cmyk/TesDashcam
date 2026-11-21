@@ -115,3 +115,7 @@ The viewer retains GA ID `G-E05V74Q9Q7` using worldwide Basic Consent Mode v2 op
 Build: `npm ci`, `npm test`, `npm run build` (includes TypeScript checking). Use `VITE_BASE_PATH=/CT-dashcam-studio-WEB/dev/` for the DEV artifact or `/CT-dashcam-studio-WEB/` for a production-path validation build. There is no configured lint command. The existing dual-branch workflow remains unchanged. The owner authorized promotion to main on 2026-11-01. Both production and DEV builds include the shared consent and legal pages under their respective base paths.
 
 For redistribution, retain LICENSE, THIRD_PARTY_NOTICES.md and licenses/, and provide the corresponding source/build scripts for the exact artifact revision. Generated legal pages link to that revision's source. Resolve the documented artwork/upstream and OSM attribution issues before claiming complete international release clearance.
+
+## Special Thanks
+
+새 디자인 프리뷰의 기반이 된 React UI 리팩터링과 텔레메트리 ‘스튜디오’ 스타일의 원안을 제안해 주신 [JellyBrick](https://github.com/JellyBrick)님께 감사드립니다. [원본 PR #1](https://github.com/mhsong282828221212123123123/CT-dashcam-studio-WEB/pull/1)

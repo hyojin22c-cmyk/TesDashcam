@@ -507,31 +507,22 @@ class CTDashcamStudioApp {
     });
 
     // 3. Mobile & Drawer tab buttons switching
-    let currentMobileTab = 'clips';
     const updateActiveTab = (targetTab: string) => {
-      currentMobileTab = targetTab;
       document.querySelectorAll('.mobile-tab-btn, .drawer-tab-btn').forEach((b) => {
         b.classList.toggle('active', b.getAttribute('data-tab') === targetTab);
       });
       document.querySelectorAll('.mobile-tab-section').forEach((sec) => {
         sec.classList.toggle('active', sec.getAttribute('data-mobile-tab') === targetTab);
       });
-      if (targetTab !== 'clips') {
-        this.toggleExplorerSheet(false);
-      }
+      this.toggleExplorerSheet(false);
     };
 
     document.querySelectorAll('.mobile-tab-btn, .drawer-tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const targetTab = btn.getAttribute('data-tab');
         if (!targetTab) return;
-        if (targetTab === 'clips') {
-          if (currentMobileTab === 'clips') {
-            this.toggleExplorerSheet();
-          } else {
-            updateActiveTab(targetTab);
-            this.toggleExplorerSheet(true);
-          }
+        if (targetTab === 'clips' && btn.classList.contains('active')) {
+          this.toggleExplorerSheet();
         } else {
           updateActiveTab(targetTab);
         }
