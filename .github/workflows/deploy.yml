@@ -23,10 +23,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out the PR 1 preview fixes
+      - name: Check out the reviewed PR 1 preview
         uses: actions/checkout@v4
         with:
-          ref: f02f363e7acc3459fc405e885d8a5c25a16361da
+          ref: d098e76515035f766b39373240d2e4ff1ae38465
           persist-credentials: false
 
       - name: Set up Node.js for the preview
