@@ -199,6 +199,10 @@ html[data-iphone] [data-layout='portrait'] {
   padding-top: 20px;
 }
 
+html[data-samsung-web-app] [data-layout='portrait'] {
+  --preview-header-top: max(34px, calc(env(safe-area-inset-top, 0px) + 6px));
+}
+
 #preview-launch {
   display: none;
 }

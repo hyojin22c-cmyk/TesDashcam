@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { Toaster } from '@/components/molecules/sonner';
 import { TooltipProvider } from '@/components/molecules/tooltip';
 import { StudioPage } from '@/components/pages/studio-page';
+import { isAppWindow } from '@/lib/platform';
 import { watchLayoutMode } from '@/studio/layout-mode';
 import { applyStudioTheme } from '@/studio/store';
 
@@ -36,6 +37,10 @@ const showEditorAfterLaunch = (app: HTMLElement) => {
 const root = document.getElementById('app');
 if (root) {
   document.documentElement.toggleAttribute('data-iphone', /iPhone/i.test(navigator.userAgent));
+  document.documentElement.toggleAttribute(
+    'data-samsung-web-app',
+    /SamsungBrowser\//i.test(navigator.userAgent) && isAppWindow(),
+  );
   applyStudioTheme();
   watchLayoutMode();
   showEditorAfterLaunch(root);

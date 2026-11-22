@@ -86,7 +86,7 @@ export const StudioLayout = ({
         >
           <Region
             id="studio-header"
-            className="shrink-0 px-4 pt-[max(6px,env(safe-area-inset-top))] pb-1.5"
+            className="shrink-0 px-4 pt-[var(--preview-header-top,max(6px,env(safe-area-inset-top)))] pb-1.5"
           >
             {header}
           </Region>
