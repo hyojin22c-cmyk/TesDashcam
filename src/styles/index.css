@@ -196,7 +196,7 @@
 }
 
 html[data-iphone] [data-layout='portrait'] {
-  padding-top: 10px;
+  padding-top: 20px;
 }
 
 #preview-launch {
