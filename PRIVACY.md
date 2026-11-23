@@ -8,7 +8,7 @@ Deployment scope: this revised source is used for production and development fol
 
 CT Dashcam Studio Web is an independent project originally created under the GitHub account `mhsong282828221212123123123` (Companion Turret). This copy is a fork maintained under the GitHub account `hyojin22c-cmyk`. It is not affiliated with Tesla, Inc. The repository does not identify a company, postal address or private contact email; none is invented here.
 
-Contact the maintainer through [GitHub Issues](https://github.com/hyojin22c-cmyk/CT-dashcam-studio-WEB/issues). GitHub Issues are public: do not post private footage, identifiers or precise locations there.
+Contact the maintainer through [GitHub Issues](https://github.com/hyojin22c-cmyk/TesDashcam/issues). GitHub Issues are public: do not post private footage, identifiers or precise locations there.
 
 ## Video, filenames, frames, telemetry and exports
 

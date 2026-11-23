@@ -3,7 +3,7 @@
 const puppeteer = require('puppeteer-core');
 
 const CHROME_PATH = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const APP_URL = process.env.APP_URL || 'http://localhost:5173/CT-dashcam-studio-WEB/';
+const APP_URL = process.env.APP_URL || 'http://localhost:5173/TesDashcam/';
 
 async function main() {
   const browser = await puppeteer.launch({ executablePath: CHROME_PATH, headless: 'new' });

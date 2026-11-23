@@ -8,7 +8,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('Brand QR Code', () => {
   it('has the correct target URL', () => {
-    expect(QR_CODE_URL).toBe('https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB');
+    expect(QR_CODE_URL).toBe('https://hyojin22c-cmyk.github.io/TesDashcam');
   });
 
   it('has a valid 39x39 matrix format with finder patterns', () => {

@@ -3,7 +3,7 @@
 일반 수정과 테스트는 `dev` 브랜치에서 진행하고, 검증이 끝난 변경을 `main`에 반영합니다.
 
 - 일반 수정은 이 `dev` 브랜치에 커밋하고 푸시합니다.
-- 테스트 주소: https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/
+- 테스트 주소: https://hyojin22c-cmyk.github.io/TesDashcam/
 - PC와 모바일에서 Tier 옆의 작은 `DEV` 표시로 테스트판을 구분합니다.
 - 확인이 끝난 변경만 `main`에 병합해 정식 주소에 반영합니다.
 - `dev` 푸시 때에도 정식 주소는 `main`의 코드로 빌드됩니다.

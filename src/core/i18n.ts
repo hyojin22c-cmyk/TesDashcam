@@ -1666,9 +1666,10 @@ export class I18nManager {
     };
     const base = import.meta.env.BASE_URL.replace(/\/dev\/$/, '/');
     document.querySelectorAll<HTMLAnchorElement>('[data-preview-link]').forEach(link => {
-      link.href = `${base}preview/pr-1/`;
-      link.title = previewLabel[lang];
-      link.setAttribute('aria-label', previewLabel[lang]);
+      link.href = base;
+      // The fork has no preview site, so the logo is a plain home link.
+      link.removeAttribute("title");
+      link.setAttribute("aria-label", "CT Dashcam Studio");
     });
 
     // 6. Export form labels

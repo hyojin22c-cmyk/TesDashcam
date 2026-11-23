@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 
 const CHROME_PATH = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const APP_URL = process.env.APP_URL || 'http://localhost:5173/CT-dashcam-studio-WEB/';
+const APP_URL = process.env.APP_URL || 'http://localhost:5173/TesDashcam/';
 const CLIP_DIR = process.env.CLIP_DIR;
 const OUT_DIR = process.env.OUT_DIR;
 

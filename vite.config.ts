@@ -8,7 +8,7 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 
 // Files the app needs to start and run without a network connection. Intro and legal pages,
 // superseded icons, crawler files and the large privacy models/runtime are cached on first use.
-const PRECACHE_PATTERN = /^(index\.html|manifest\.webmanifest|assets\/.+|models\/.+\.png|legal\/(consent\.js|privacy\.css|palettes\.css)|ct-icon-v3-[^/]+|ct-favicon-v3\.ico|apple-touch-icon\.png|favicon\.ico)$/;
+const PRECACHE_PATTERN = /^(index\.html|manifest\.webmanifest|assets\/.+|models\/.+\.png|legal\/(consent\.js|privacy\.css|palettes\.css)|ct-icon-v4-[^/]+|ct-favicon-v4\.ico|apple-touch-icon\.png|favicon\.ico)$/;
 
 function listFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -46,7 +46,7 @@ function precacheServiceWorker(outDir = 'dist') {
 
 export default defineConfig(({ mode }) => {
   const isHttps = process.env.HTTPS === 'true' || mode === 'https';
-  const basePath = process.env.VITE_BASE_PATH || '/CT-dashcam-studio-WEB/';
+  const basePath = process.env.VITE_BASE_PATH || '/TesDashcam/';
   const introRoutes = new Set([`${basePath}intro/`, ...Object.values(introLocales).map(locale => `${basePath}intro/${locale.slug}/`)]);
   const introDirectoryIndex = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const url = new URL(req.url || '/', 'http://localhost');

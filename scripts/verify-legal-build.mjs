@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 const root = path.resolve(process.argv[2] || 'dist');
-const base = process.env.VITE_BASE_PATH || '/CT-dashcam-studio-WEB/';
+const base = process.env.VITE_BASE_PATH || '/TesDashcam/';
 const origin = 'https://build.test';
 const errors = [];
 let pages = 0, links = 0;
