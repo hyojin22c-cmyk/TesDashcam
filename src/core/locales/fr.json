@@ -232,5 +232,14 @@
   "theme_paper_sand": "Papier sable",
   "feedback_link": "Signaler un problème / Donner un avis",
   "feedback_login_note": "Connexion Google requise",
-  "intro_link": "Présentation"
+  "intro_link": "Présentation",
+  "export_result_title": "Export terminé",
+  "export_result_desc": "Votre vidéo est prête ({0} Mo). Choisissez comment l’enregistrer.",
+  "export_result_share": "Partager · Enregistrer dans Photos",
+  "export_result_download": "Enregistrer dans Fichiers",
+  "export_result_close": "Fermer",
+  "chk_plate_blur": "Mosaïque des plaques (bêta)",
+  "toast_privacy_loading": "Chargement des modèles de mosaïque…",
+  "alert_privacy_failed": "Impossible de charger la fonction de mosaïque.\nPour protéger la vie privée, l’export est annulé au lieu d’enregistrer sans mosaïque.\n({0})",
+  "alert_privacy_android": "L’export avec mosaïque n’est pas encore pris en charge sur Android.\nDésactivez la mosaïque ou exportez sur PC, iPhone ou iPad."
 }

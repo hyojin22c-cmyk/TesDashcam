@@ -21,6 +21,8 @@ import { SeiWorkerResponse } from './core/seiWorker';
 import { OverlayRenderer, RenderOptions, DEFAULT_RENDER_OPTIONS, DEFAULT_TELEMETRY_ORDER, COL_WIDTH_BASE } from './core/renderer';
 import { detectDeviceCapabilities, CapabilityPolicy, getDeviceTierReason } from './core/capability';
 import { WebCodecsExporter, ExportClipSegment } from './core/exporter';
+import { clearExportStorage, isExportDiskTargetSupported } from './core/exportStorage';
+import { PrivacyEngine, PrivacySettings } from './core/privacy/privacyEngine';
 import { RESOLUTIONS, CameraKey } from './core/constants';
 import { initializeTheme } from './core/theme';
 import { i18n, SupportedLang, isIOSOrAndroid, isIOS, isAndroid } from './core/i18n';
@@ -65,6 +67,12 @@ class CTDashcamStudioApp {
   private durationSec = 60.0;
   private fps = 36.0;
   private options: RenderOptions = { ...DEFAULT_RENDER_OPTIONS };
+  private privacySettings: PrivacySettings = { blurPlate: false, blurFace: false };
+  // Preview mosaic: analysed in the background, so it can trail the picture by a moment.
+  // Exports use their own engine and analyse every frame before encoding it.
+  private previewPrivacy: PrivacyEngine | null = null;
+  private previewPrivacyBusy = false;
+  private previewPrivacyStamp = '';
 
   // Video elements fixed pool & active segment Blob URLs tracking
   private readonly allCameraKeys: CameraKey[] = ['front', 'back', 'left_repeater', 'right_repeater', 'left_pillar', 'right_pillar'];
@@ -840,6 +848,17 @@ class CTDashcamStudioApp {
       'fsd', 'pillar_pip', 'turn_signal', 'map', 'qr', 'rear_crop', 'rear_correction'
     ];
 
+    const privacyChecks: Array<[string, keyof PrivacySettings]> = [['chk-plate-blur', 'blurPlate'], ['chk-face-blur', 'blurFace']];
+    privacyChecks.forEach(([id, key]) => {
+      const chk = document.getElementById(id) as HTMLInputElement | null;
+      if (!chk) return;
+      chk.checked = this.privacySettings[key];
+      chk.addEventListener('change', () => {
+        this.privacySettings[key] = chk.checked;
+        this.applyPrivacySettings();
+      });
+    });
+
     chkKeys.forEach((key) => {
       const elId = key === 'pillar_pip' ? 'chk-pillar-pip' : `chk-${key.replace('_', '-')}`;
       const chk = document.getElementById(elId) as HTMLInputElement;
@@ -1141,6 +1160,12 @@ class CTDashcamStudioApp {
       }
     });
     this.updatePillarPipState();
+    for (const id of ['chk-plate-blur', 'chk-face-blur']) {
+      const chk = document.getElementById(id) as HTMLInputElement | null;
+      if (chk) chk.checked = false;
+    }
+    this.privacySettings = { blurPlate: false, blurFace: false };
+    this.applyPrivacySettings();
 
     // 5. 내보내기 설정 셀렉트박스 초기화
     const resSelect = document.getElementById('export-resolution') as HTMLSelectElement | null;
@@ -2595,6 +2620,8 @@ class CTDashcamStudioApp {
       }
     }
 
+    this.schedulePreviewPrivacy(activeFrames);
+
     OverlayRenderer.render(
       this.canvas,
       activeFrames,
@@ -2605,6 +2632,62 @@ class CTDashcamStudioApp {
       this.fps,
       this.options
     );
+  }
+
+  /** Rebuilds the preview privacy engine after a mosaic option changed. */
+  private applyPrivacySettings() {
+    const settings = { ...this.privacySettings };
+    this.options.privacyBoxes = undefined;
+    this.previewPrivacyStamp = '';
+    if (!settings.blurPlate && !settings.blurFace) {
+      this.previewPrivacy = null;
+      if (this.activeClip) this.renderFrame();
+      return;
+    }
+    // Preview frames are analysed sparsely, so detect on every one and drop stale boxes quickly.
+    const engine = new PrivacyEngine(settings, 1, 3);
+    this.previewPrivacy = engine;
+    this.showToast(i18n.t('toast_privacy_loading'), 3000);
+    engine.prepare().then(
+      () => { if (this.previewPrivacy === engine && this.activeClip) this.renderFrame(); },
+      (e) => {
+        if (this.previewPrivacy !== engine) return;
+        console.error('[Privacy] Model load failed:', e);
+        this.previewPrivacy = null;
+        this.privacySettings = { blurPlate: false, blurFace: false };
+        for (const id of ['chk-plate-blur', 'chk-face-blur']) {
+          const chk = document.getElementById(id) as HTMLInputElement | null;
+          if (chk) chk.checked = false;
+        }
+        this.showToast(i18n.t('alert_privacy_failed', [String(e?.message || e)]));
+      },
+    );
+  }
+
+  private schedulePreviewPrivacy(frames: Partial<Record<CameraKey, HTMLVideoElement>>) {
+    const engine = this.previewPrivacy;
+    if (!engine || this.previewPrivacyBusy || this.isExporting || !this.activeClip) return;
+    const ready: Partial<Record<CameraKey, HTMLVideoElement>> = {};
+    for (const k of Object.keys(frames) as CameraKey[]) {
+      const v = frames[k];
+      if (v && v.readyState >= 2 && v.videoWidth > 0) ready[k] = v;
+    }
+    if (Object.keys(ready).length === 0) return;
+    // Cameras become ready one by one after a clip change; analyse again when the set grows.
+    const stamp = `${this.activeClip.id}@${this.currentTimeSec.toFixed(3)}:${Object.keys(ready).join(',')}`;
+    if (stamp === this.previewPrivacyStamp) return;
+
+    this.previewPrivacyBusy = true;
+    engine.analyze(ready).then(
+      (boxes) => { if (this.previewPrivacy === engine) this.options.privacyBoxes = boxes; },
+      (e) => console.warn('[Privacy] Preview analysis failed:', e),
+    ).finally(() => {
+      this.previewPrivacyBusy = false;
+      if (this.previewPrivacy !== engine) return;
+      this.previewPrivacyStamp = stamp;
+      // While paused nothing else redraws the canvas, so show the result now.
+      if (!this.isPlaying && !this.isExporting) this.renderFrame();
+    });
   }
 
   private updatePlayButton() {
@@ -2984,6 +3067,98 @@ class CTDashcamStudioApp {
     estLabel.textContent = `${i18n.t('est_size_prefix')}${estMb.toFixed(1)} MB`;
   }
 
+  private downloadBlob(blob: Blob, fileName: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try {
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch {}
+    }, 60000);
+  }
+
+  /** Returns a File the system share sheet accepts, or null when file sharing is unavailable. */
+  private toShareableFile(blob: Blob, fileName: string): File | null {
+    try {
+      if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function') return null;
+      const file = new File([blob], fileName, { type: 'video/mp4' });
+      return navigator.canShare({ files: [file] }) ? file : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private showExportResultDialog(file: File) {
+    document.getElementById('export-result-modal')?.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'export-result-modal';
+    backdrop.className = 'modal-backdrop';
+    backdrop.style.display = 'flex';
+
+    const card = document.createElement('div');
+    card.className = 'modal-card export-progress-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+
+    const header = document.createElement('div');
+    header.className = 'export-modal-header';
+    const title = document.createElement('h3');
+    title.className = 'export-modal-title';
+    title.textContent = i18n.t('export_result_title');
+    header.appendChild(title);
+
+    const body = document.createElement('div');
+    body.className = 'export-modal-body export-result-body';
+    const desc = document.createElement('p');
+    desc.className = 'export-sub-info';
+    desc.textContent = i18n.t('export_result_desc', [(file.size / (1024 * 1024)).toFixed(1)]);
+    const name = document.createElement('p');
+    name.className = 'export-result-filename';
+    name.textContent = file.name;
+    body.append(desc, name);
+
+    const actions = document.createElement('div');
+    actions.className = 'export-modal-footer export-result-actions';
+    const btnShare = document.createElement('button');
+    btnShare.id = 'btn-export-result-share';
+    btnShare.className = 'btn btn-export-main';
+    btnShare.textContent = i18n.t('export_result_share');
+    const btnDownload = document.createElement('button');
+    btnDownload.id = 'btn-export-result-download';
+    btnDownload.className = 'btn btn-export-result-secondary';
+    btnDownload.textContent = i18n.t('export_result_download');
+    const btnClose = document.createElement('button');
+    btnClose.id = 'btn-export-result-close';
+    btnClose.className = 'btn btn-export-result-secondary';
+    btnClose.textContent = i18n.t('export_result_close');
+    actions.append(btnShare, btnDownload, btnClose);
+
+    btnShare.addEventListener('click', async () => {
+      try {
+        await navigator.share({ files: [file] });
+      } catch (e: any) {
+        // Dismissing the share sheet is not an error; anything else falls back to a download.
+        if (e?.name !== 'AbortError') {
+          console.warn('[Export] Share failed, downloading instead:', e);
+          this.downloadBlob(file, file.name);
+        }
+      }
+    });
+    btnDownload.addEventListener('click', () => this.downloadBlob(file, file.name));
+    btnClose.addEventListener('click', () => backdrop.remove());
+
+    card.append(header, body, actions);
+    backdrop.appendChild(card);
+    document.body.appendChild(backdrop);
+  }
+
   private async startExport() {
     if (!this.activeClip) return;
 
@@ -3021,12 +3196,38 @@ class CTDashcamStudioApp {
     // 모바일(갤럭시/아이폰) 3분(180초) 초과 시 경고 및 진행 여부 확인
     const totalDurationSec = segments.reduce((sum, seg) => sum + (seg.endSec - seg.startSec), 0);
     const isMobileEnv = this.isMobile() || isIOSOrAndroid();
-    if (isMobileEnv && totalDurationSec > 180.0) {
+    // Long exports are streamed to storage where the browser allows it (see exporter); the warning
+    // only applies where the whole file still has to be held in memory.
+    const longExportFitsOnDisk = !isAndroid() && isExportDiskTargetSupported();
+    if (isMobileEnv && totalDurationSec > 180.0 && !longExportFitsOnDisk) {
       const confirmMsg = i18n.t('confirm_mobile_long_clip') || '클립이 너무 길어 정상 추출이 되지 않을 수 있습니다. 계속 진행하시겠습니까?';
       if (!confirm(confirmMsg)) {
         return;
       }
     }
+
+    // Mosaic: load the models before anything else. Fail closed: if they cannot be used, do not
+    // export at all rather than save a video without the mosaic the user asked for.
+    let exportPrivacy: PrivacyEngine | null = null;
+    if (this.privacySettings.blurPlate || this.privacySettings.blurFace) {
+      if (isAndroid()) {
+        alert(i18n.t('alert_privacy_android'));
+        return;
+      }
+      try {
+        this.showToast(i18n.t('toast_privacy_loading'), 3000);
+        exportPrivacy = new PrivacyEngine({ ...this.privacySettings });
+        await exportPrivacy.prepare();
+      } catch (e: any) {
+        console.error('[Privacy] Model load failed:', e);
+        alert(i18n.t('alert_privacy_failed', [String(e?.message || e)]));
+        return;
+      }
+    }
+
+    // A previous result dialog and its stored file are no longer needed once a new export starts.
+    document.getElementById('export-result-modal')?.remove();
+    await clearExportStorage();
 
     // Unconditionally stop playback and update play button for all platforms
     this.pauseAllVideos(true);
@@ -3106,13 +3307,20 @@ class CTDashcamStudioApp {
 
     // Screen Wake Lock to prevent mobile display sleep
     let wakeLockSentinel: any = null;
-    if ('wakeLock' in navigator && (navigator as any).wakeLock) {
+    const requestWakeLock = async () => {
+      if (!('wakeLock' in navigator) || !(navigator as any).wakeLock) return;
       try {
         wakeLockSentinel = await (navigator as any).wakeLock.request('screen');
       } catch (e) {
         console.warn('[Export] Screen wake lock not granted:', e);
       }
-    }
+    };
+    await requestWakeLock();
+    // The browser drops the wake lock whenever the page is hidden; take it again on return.
+    const onExportVisibilityChange = () => {
+      if (!document.hidden && this.isExporting) void requestWakeLock();
+    };
+    document.addEventListener('visibilitychange', onExportVisibilityChange);
 
     try {
       const blob = await this.exporter.exportMultiClip({
@@ -3134,6 +3342,7 @@ class CTDashcamStudioApp {
         exportSpeed,
         resolutionName: resSelect.value as any,
         options: this.options,
+        privacy: exportPrivacy || undefined,
         onProgress: (pct, curSeg, totalSeg) => {
           if (statusLabel) {
             statusLabel.textContent = i18n.t('status_encoding', [pct, curSeg, totalSeg]);
@@ -3146,22 +3355,17 @@ class CTDashcamStudioApp {
         },
       });
 
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
       const fileName = segments.length > 1
         ? `TeslaCam_${segments[0].clip.timestampRaw}_to_${segments[segments.length - 1].clip.timestampRaw}_export.mp4`
         : `TeslaCam_${segments[0].clip.timestampRaw}_export.mp4`;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        try {
-          a.remove();
-          URL.revokeObjectURL(url);
-        } catch {}
-      }, 60000);
+      // iOS: offer the share sheet (Photos, Messages, AirDrop) next to the plain file download.
+      // Sharing needs a fresh tap, so the choice is presented in a dialog instead of starting here.
+      const shareFile = isIOS() ? this.toShareableFile(blob, fileName) : null;
+      if (shareFile) {
+        this.showExportResultDialog(shareFile);
+      } else {
+        this.downloadBlob(blob, fileName);
+      }
 
       if (exportModalPct) exportModalPct.textContent = '100%';
       if (exportModalGaugeFill) exportModalGaugeFill.style.width = '100%';
@@ -3191,6 +3395,7 @@ class CTDashcamStudioApp {
       }
       this.updatePlayButton();
       window.removeEventListener('beforeunload', preventUnload);
+      document.removeEventListener('visibilitychange', onExportVisibilityChange);
       btnCancelExportModal?.removeEventListener('click', onModalCancel);
 
       // Restore preview video pool to the saved clip and timestamp

@@ -232,5 +232,14 @@
   "theme_paper_sand": "Papier Sand",
   "feedback_link": "Problem melden / Feedback geben",
   "feedback_login_note": "Google-Anmeldung erforderlich",
-  "intro_link": "Über das Projekt"
+  "intro_link": "Über das Projekt",
+  "export_result_title": "Export abgeschlossen",
+  "export_result_desc": "Ihr Video ist bereit ({0} MB). Wählen Sie, wie es gesichert werden soll.",
+  "export_result_share": "Teilen · In Fotos sichern",
+  "export_result_download": "In Dateien sichern",
+  "export_result_close": "Schließen",
+  "chk_plate_blur": "Kennzeichenmosaik (Beta)",
+  "toast_privacy_loading": "Mosaikmodelle werden geladen…",
+  "alert_privacy_failed": "Die Mosaikfunktion konnte nicht geladen werden.\nZum Schutz der Privatsphäre wird der Export abgebrochen, statt ohne Mosaik zu speichern.\n({0})",
+  "alert_privacy_android": "Der Export mit Mosaik wird unter Android noch nicht unterstützt.\nDeaktivieren Sie das Mosaik oder exportieren Sie auf PC, iPhone oder iPad."
 }

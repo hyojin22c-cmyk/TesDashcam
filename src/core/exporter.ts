@@ -6,6 +6,9 @@ import { RealTeslaSEIDecoder, TelemetryData } from './seiDecoder';
 import { RESOLUTIONS, CameraKey } from './constants';
 import { ClipItem, ensureClipFiles } from './clipScanner';
 import { i18n } from './i18n';
+import { DecodedFrameReader } from './frameSource';
+import { ExportDiskTarget, openExportDiskTarget } from './exportStorage';
+import type { FramePrivacyFilter } from './privacy/privacyEngine';
 
 // Background-safe event loop yield helper that prevents Chromium 1000ms timer throttling in hidden tabs
 function fastYield(): Promise<void> {
@@ -19,6 +22,23 @@ function fastYield(): Promise<void> {
       resolve();
     };
     ch.port2.postMessage(null);
+  });
+}
+
+// iOS suspends timers, decoders and encoders while the page is hidden. Waiting here keeps the
+// export from encoding stale frames after the user briefly switches apps.
+function waitUntilVisible(isCancelled: () => boolean): Promise<void> {
+  if (typeof document === 'undefined' || !document.hidden) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const check = () => {
+      if (!document.hidden || isCancelled()) {
+        document.removeEventListener('visibilitychange', check);
+        clearInterval(timer);
+        resolve();
+      }
+    };
+    const timer = setInterval(check, 500);
+    document.addEventListener('visibilitychange', check);
   });
 }
 
@@ -38,11 +58,31 @@ export interface MultiClipExportConfig {
   resolutionName: keyof typeof RESOLUTIONS;
   options: RenderOptions;
   onProgress: (percent: number, currentSegmentIdx: number, totalSegments: number) => void;
-
+  /** Write the MP4 to origin-private storage instead of memory. Default: only for large outputs. */
+  diskOutput?: 'auto' | 'always' | 'never';
+  /**
+   * Mosaics licence plates and/or faces. Every frame is analysed before it is encoded; if the
+   * analysis fails the export fails, so no frame is ever written without its mosaic.
+   * Not applied by the Android streaming path, which cannot wait for an analysis per frame.
+   */
+  privacy?: FramePrivacyFilter;
+  /** Decode clips with WebCodecs instead of seeking video elements. Default: true where supported. */
+  directDecode?: boolean;
 }
+
+export interface ExportRunInfo {
+  framePath: 'decoder' | 'video' | 'mixed' | 'android';
+  output: 'memory' | 'disk';
+  frames: number;
+}
+
+// Above this estimated size the finished file is streamed to disk rather than held in memory.
+export const DISK_OUTPUT_THRESHOLD_BYTES = 150 * 1024 * 1024;
 
 export class WebCodecsExporter {
   private isCancelled = false;
+  /** How the most recent export produced its frames and output; for diagnostics and tests. */
+  lastRun: ExportRunInfo | null = null;
 
   private getActiveCamKeys(options: RenderOptions): CameraKey[] {
     if (options.layout === '단일 카메라') {
@@ -527,6 +567,7 @@ export class WebCodecsExporter {
 
   async exportMultiClip(config: MultiClipExportConfig): Promise<Blob> {
     this.isCancelled = false;
+    this.lastRun = null;
 
     // Platform detection: Android (needs Samsung MediaCodec B-frame & buffer workarounds) vs iOS (native VideoToolbox)
     const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
@@ -534,6 +575,9 @@ export class WebCodecsExporter {
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
     );
+    if (config.privacy && isAndroid) {
+      throw new Error('Privacy mosaic is not available for exports on Android');
+    }
     const isMobile = isAndroid || isIOS || (typeof window !== 'undefined' && window.matchMedia('(max-width: 850px), (pointer: coarse), ((orientation: landscape) and (max-height: 600px))').matches);
 
     const resConfig = RESOLUTIONS[config.resolutionName] || RESOLUTIONS["FHD (1920x1080) - 권장 표준"];
@@ -543,7 +587,9 @@ export class WebCodecsExporter {
     const baseBitrate = resConfig.bitrate_mbps;
     const fpsRatio = Math.pow(Math.max(1, config.targetFps) / 30.0, 0.45);
     const scaledBitrate = baseBitrate * fpsRatio;
-    const effectiveBitrateMbps = isMobile
+    // iPads share the phone user agent checks but not the phone's thermal and memory limits.
+    const isTablet = isIOS && typeof screen !== 'undefined' && Math.min(screen.width, screen.height) >= 744;
+    const effectiveBitrateMbps = isMobile && !isTablet
       ? Math.min(scaledBitrate, targetW >= 2560 ? 16.0 : targetW >= 1920 ? 10.0 : 5.5)
       : scaledBitrate;
     const bitrateBps = Math.round(effectiveBitrateMbps * 1_000_000);
@@ -553,17 +599,40 @@ export class WebCodecsExporter {
     exportCanvas.width = targetW;
     exportCanvas.height = targetH;
 
+    // Output target: memory for ordinary exports, origin-private storage for large ones so a long
+    // export does not have to fit in RAM twice (muxer buffer + final Blob).
+    const estimatedSourceSec = config.segments.reduce((sum, seg) => sum + Math.max(0, seg.endSec - seg.startSec), 0);
+    const estimatedBytes = (bitrateBps / 8) * (estimatedSourceSec / Math.max(0.01, config.exportSpeed));
+    const diskMode = config.diskOutput || 'auto';
+    let disk: ExportDiskTarget | null = null;
+    if (!isAndroid && (diskMode === 'always' || (diskMode === 'auto' && estimatedBytes > DISK_OUTPUT_THRESHOLD_BYTES))) {
+      disk = await openExportDiskTarget();
+    }
+
     // mp4-muxer setup
-    const muxer = new Mp4Muxer.Muxer({
-      target: new Mp4Muxer.ArrayBufferTarget(),
+    const activeDisk = disk;
+    const muxer = new Mp4Muxer.Muxer<Mp4Muxer.ArrayBufferTarget | Mp4Muxer.StreamTarget>({
+      target: activeDisk
+        ? new Mp4Muxer.StreamTarget({
+            onData: (data, position) => activeDisk.write(data, position),
+            chunked: true,
+            chunkSize: 4 * 1024 * 1024,
+          })
+        : new Mp4Muxer.ArrayBufferTarget(),
       video: {
         codec: 'avc',
         width: targetW,
         height: targetH,
       },
-      fastStart: 'in-memory',
+      // The index cannot be moved to the front without holding the whole file in memory.
+      fastStart: activeDisk ? false : 'in-memory',
       firstTimestampBehavior: 'offset',
     });
+    let exportCompleted = false;
+    let usedDecoderPath = false;
+    let usedVideoPath = false;
+    // Disabled for the rest of the export after the first failure, so one bad clip costs one retry.
+    let directDecode = !isAndroid && config.directDecode !== false && DecodedFrameReader.isSupported();
 
     let videoEncoder: VideoEncoder | null = null;
     let receivedChunkCount = 0;
@@ -687,6 +756,12 @@ export class WebCodecsExporter {
         await ensureClipFiles(segment.clip);
         const segVideos: Partial<Record<CameraKey, HTMLVideoElement>> = {};
         const objectUrls: string[] = [];
+        let readers: Partial<Record<CameraKey, DecodedFrameReader>> | null = null;
+        const closeReaders = () => {
+          if (!readers) return;
+          for (const reader of Object.values(readers)) reader?.close();
+          readers = null;
+        };
         try {
           const activeCamKeys = this.getActiveCamKeys(config.options);
           const camKeys = (Object.keys(segment.clip.cams) as CameraKey[]).filter((k) =>
@@ -694,49 +769,81 @@ export class WebCodecsExporter {
           );
 
           const hiddenContainer = document.getElementById('hidden-video-container');
+          const segmentClip = segment.clip;
 
-          for (const k of camKeys) {
-            const file = segment.clip.cams[k];
-            if (!file) continue;
-            const url = URL.createObjectURL(file);
-            objectUrls.push(url);
+          // Seek-based source: one hidden video element per camera, primed at `startSec`.
+          const setupSegmentVideos = async (startSec: number) => {
+            usedVideoPath = true;
+            for (const k of camKeys) {
+              const file = segmentClip.cams[k];
+              if (!file) continue;
+              const url = URL.createObjectURL(file);
+              objectUrls.push(url);
 
-            const v = document.createElement('video');
-            v.src = url;
-            v.muted = true;
-            v.playsInline = true;
-            v.setAttribute('playsinline', '');
-            v.setAttribute('webkit-playsinline', '');
-            v.preload = 'auto';
-            v.style.width = '1px';
-            v.style.height = '1px';
-            v.style.opacity = '0.01';
-            v.style.pointerEvents = 'none';
-            if (hiddenContainer) {
-              hiddenContainer.appendChild(v);
+              const v = document.createElement('video');
+              v.src = url;
+              v.muted = true;
+              v.playsInline = true;
+              v.setAttribute('playsinline', '');
+              v.setAttribute('webkit-playsinline', '');
+              v.preload = 'auto';
+              v.style.width = '1px';
+              v.style.height = '1px';
+              v.style.opacity = '0.01';
+              v.style.pointerEvents = 'none';
+              if (hiddenContainer) {
+                hiddenContainer.appendChild(v);
+              }
+              try {
+                v.load();
+              } catch {}
+              segVideos[k] = v;
             }
-            try {
-              v.load();
-            } catch {}
-            segVideos[k] = v;
+            // Preload, prime hardware decoders, seek to startSec, and verify actual canvas pixel output before encoding
+            await this.warmupSegmentVideos(segVideos, startSec, isIOS);
+          };
+
+          // Decoder-based source: every camera is demuxed and decoded directly, in order.
+          if (directDecode) {
+            const keys = camKeys.filter((k) => Boolean(segmentClip.cams[k]));
+            const results = await Promise.allSettled(keys.map((k) => DecodedFrameReader.open(segmentClip.cams[k]!)));
+            const opened: Partial<Record<CameraKey, DecodedFrameReader>> = {};
+            let failure: unknown = null;
+            results.forEach((result, idx) => {
+              if (result.status === 'fulfilled') opened[keys[idx]] = result.value;
+              else failure = result.reason;
+            });
+            if (failure || keys.length === 0) {
+              for (const reader of Object.values(opened)) reader?.close();
+              if (failure) {
+                console.warn('[Exporter] Direct decoding unavailable, using video element seeking:', failure);
+                directDecode = false;
+              }
+            } else {
+              readers = opened;
+            }
           }
 
-        // Preload, prime hardware decoders, seek to segment.startSec, and verify actual canvas pixel output before encoding
-        await this.warmupSegmentVideos(segVideos, segment.startSec, isIOS);
+          if (!readers) {
+            await setupSegmentVideos(segment.startSec);
+          }
 
         // A SavedClip may end after only a few seconds. Never encode the scanner's
         // 60-second estimate after the master video has already ended.
         const masterVideo = segVideos.front || Object.values(segVideos).find(Boolean);
-        const actualSegment = clampSegmentToMedia(segment, masterVideo?.duration ?? NaN);
+        const openedReaders = readers as Partial<Record<CameraKey, DecodedFrameReader>> | null;
+        const masterReader = openedReaders ? openedReaders.front || Object.values(openedReaders).find(Boolean) : null;
+        const actualSegment = clampSegmentToMedia(segment, masterReader?.durationSec ?? masterVideo?.duration ?? NaN);
         totalSourceSec += (actualSegment.endSec - actualSegment.startSec)
           - (segment.endSec - segment.startSec);
         totalFrames = Math.max(1, Math.ceil(totalSourceSec / frameStepSec));
         segment = actualSegment;
 
         // New clip: drop any tracker state carried over from the previous segment
+        config.privacy?.reset();
         // Fetch SEI decoder
         const decoder = await config.getClipDecoder(segment.clip);
-        const videoKeys = Object.keys(segVideos) as CameraKey[];
+        let videoKeys = Object.keys(segVideos) as CameraKey[];
 
         if (isAndroid) {
           // Android: Pause 없는 연속 저속 재생 + 동적 배속 싱크 (Soft Sync)
@@ -762,7 +869,35 @@ export class WebCodecsExporter {
           let isFirstSegmentFrame = true;
 
           while (currentSourceSec < segment.endSec - 1e-9 && !this.isCancelled) {
-            if (isFirstSegmentFrame) {
+            if (isIOS) {
+              await waitUntilVisible(() => this.isCancelled);
+              if (this.isCancelled) break;
+            }
+
+            let frameSources: Partial<Record<CameraKey, CanvasImageSource | null>> = segVideos;
+            const activeReaders = readers as Partial<Record<CameraKey, DecodedFrameReader>> | null;
+            if (activeReaders) {
+              try {
+                const keys = Object.keys(activeReaders) as CameraKey[];
+                const decoded = await Promise.all(keys.map((k) => activeReaders[k]!.frameAt(currentSourceSec)));
+                const frames: Partial<Record<CameraKey, CanvasImageSource | null>> = {};
+                keys.forEach((k, idx) => { frames[k] = decoded[idx]; });
+                frameSources = frames;
+                usedDecoderPath = true;
+              } catch (err) {
+                // Finish this segment, and the rest of the export, with the seek-based source.
+                console.warn('[Exporter] Direct decoding failed, falling back to video element seeking:', err);
+                closeReaders();
+                directDecode = false;
+                await setupSegmentVideos(currentSourceSec);
+                videoKeys = Object.keys(segVideos) as CameraKey[];
+                isFirstSegmentFrame = true;
+              }
+            }
+
+            if (readers) {
+              // Frames come straight from the decoders; there is no video element to seek.
+            } else if (isFirstSegmentFrame) {
               // Frame #0 is already pre-seeked and pixel-verified by warmupSegmentVideos
               isFirstSegmentFrame = false;
             } else {
@@ -830,16 +965,20 @@ export class WebCodecsExporter {
 
             const timestampText = segment.baseTimeStr;
 
+            const renderOptions = config.privacy
+              ? { ...config.options, privacyBoxes: await config.privacy.analyze(frameSources) }
+              : config.options;
+
             // Render overlay onto offscreen export canvas
             OverlayRenderer.render(
               exportCanvas,
-              segVideos,
+              frameSources,
               telemetry,
               timestampText,
               currentSourceSec,
               currentFrameIdx,
               config.sourceFps,
-              config.options
+              renderOptions
             );
 
             // Feed to VideoEncoder
@@ -870,6 +1009,7 @@ export class WebCodecsExporter {
         cumulativeCompletedSec += Math.max(0.01, segment.endSec - segment.startSec);
       } finally {
         // Cleanup this segment's video URLs and forcibly release hardware decoders
+        closeReaders();
         for (const url of objectUrls) {
           URL.revokeObjectURL(url);
         }
@@ -970,14 +1110,33 @@ export class WebCodecsExporter {
 
       muxer.finalize();
 
-      const { buffer } = muxer.target;
+      this.lastRun = {
+        framePath: isAndroid ? 'android' : usedDecoderPath && usedVideoPath ? 'mixed' : usedDecoderPath ? 'decoder' : 'video',
+        output: disk ? 'disk' : 'memory',
+        frames: outputFrameCount,
+      };
+
+      if (disk) {
+        const file = await disk.finish();
+        if (file.size === 0) {
+          throw new Error(i18n.t('error_empty_output'));
+        }
+        exportCompleted = true;
+        return file;
+      }
+
+      const { buffer } = muxer.target as Mp4Muxer.ArrayBufferTarget;
       if (!buffer || buffer.byteLength === 0) {
         throw new Error(i18n.t('error_empty_output'));
       }
+      exportCompleted = true;
       return new Blob([buffer], { type: 'video/mp4' });
     } finally {
       if (videoEncoder && videoEncoder.state !== 'closed') {
         videoEncoder.close();
+      }
+      if (disk && !exportCompleted) {
+        await disk.discard();
       }
     }
   }

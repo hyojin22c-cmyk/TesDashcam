@@ -26,6 +26,15 @@ export const TRANSLATIONS: Record<SupportedLang, Record<string, string>> = {
   fr,
   es,
   ko: {
+    chk_plate_blur: "번호판 모자이크 (실험)",
+    toast_privacy_loading: "모자이크 모델을 불러오는 중입니다...",
+    alert_privacy_failed: "모자이크 기능을 불러오지 못했습니다.\n개인정보 보호를 위해 모자이크 없이 내보내지 않고 작업을 중단합니다.\n({0})",
+    alert_privacy_android: "Android에서는 모자이크를 적용한 내보내기를 아직 지원하지 않습니다.\n모자이크 옵션을 끄거나 PC·iPhone·iPad에서 내보내 주세요.",
+    export_result_title: "내보내기 완료",
+    export_result_desc: "영상이 준비되었습니다 ({0} MB). 저장할 방법을 선택하세요.",
+    export_result_share: "공유 · 사진 앱에 저장",
+    export_result_download: "파일 앱에 저장",
+    export_result_close: "닫기",
     theme_paper_blue: "페이퍼 블루",
     theme_paper_violet: "페이퍼 바이올렛",
     theme_paper_rose: "페이퍼 로즈",
@@ -288,6 +297,15 @@ export const TRANSLATIONS: Record<SupportedLang, Record<string, string>> = {
   },
 
   en: {
+    chk_plate_blur: "Plate Mosaic (Beta)",
+    toast_privacy_loading: "Loading the mosaic models...",
+    alert_privacy_failed: "Failed to load the mosaic feature.\nTo protect privacy, the export is cancelled instead of saving without the mosaic.\n({0})",
+    alert_privacy_android: "Exporting with the mosaic is not supported on Android yet.\nTurn the mosaic options off, or export on a PC, iPhone or iPad.",
+    export_result_title: "Export complete",
+    export_result_desc: "Your video is ready ({0} MB). Choose how to save it.",
+    export_result_share: "Share · Save to Photos",
+    export_result_download: "Save to Files",
+    export_result_close: "Close",
     theme_paper_blue: "Paper Blue",
     theme_paper_violet: "Paper Violet",
     theme_paper_rose: "Paper Rose",
@@ -550,6 +568,15 @@ export const TRANSLATIONS: Record<SupportedLang, Record<string, string>> = {
   },
 
   ja: {
+    chk_plate_blur: "ナンバープレートモザイク (ベータ)",
+    toast_privacy_loading: "モザイクのモデルを読み込んでいます...",
+    alert_privacy_failed: "モザイク機能を読み込めませんでした。\nプライバシー保護のため、モザイクなしでは書き出さず処理を中止します。\n({0})",
+    alert_privacy_android: "Androidではモザイク付きの書き出しにまだ対応していません。\nモザイクをオフにするか、PC・iPhone・iPadで書き出してください。",
+    export_result_title: "書き出し完了",
+    export_result_desc: "動画の準備ができました（{0} MB）。保存方法を選んでください。",
+    export_result_share: "共有 · 写真に保存",
+    export_result_download: "ファイルに保存",
+    export_result_close: "閉じる",
     theme_paper_blue: "ペーパー・ブルー",
     theme_paper_violet: "ペーパー・バイオレット",
     theme_paper_rose: "ペーパー・ローズ",
@@ -812,6 +839,15 @@ export const TRANSLATIONS: Record<SupportedLang, Record<string, string>> = {
   },
 
   'zh-CN': {
+    chk_plate_blur: "车牌马赛克 (测试)",
+    toast_privacy_loading: "正在加载马赛克模型...",
+    alert_privacy_failed: "无法加载马赛克功能。\n为保护隐私，将中止导出，而不是在没有马赛克的情况下保存。\n({0})",
+    alert_privacy_android: "Android 暂不支持带马赛克的导出。\n请关闭马赛克选项，或在电脑、iPhone 或 iPad 上导出。",
+    export_result_title: "导出完成",
+    export_result_desc: "视频已准备好（{0} MB）。请选择保存方式。",
+    export_result_share: "分享 · 存储到照片",
+    export_result_download: "存储到文件",
+    export_result_close: "关闭",
     theme_paper_blue: "纸白·蓝",
     theme_paper_violet: "纸白·紫",
     theme_paper_rose: "纸白·玫瑰",
@@ -1074,6 +1110,15 @@ export const TRANSLATIONS: Record<SupportedLang, Record<string, string>> = {
   },
 
   'zh-TW': {
+    chk_plate_blur: "車牌馬賽克 (測試)",
+    toast_privacy_loading: "正在載入馬賽克模型...",
+    alert_privacy_failed: "無法載入馬賽克功能。\n為保護隱私，將中止匯出，而不是在沒有馬賽克的情況下儲存。\n({0})",
+    alert_privacy_android: "Android 尚不支援帶馬賽克的匯出。\n請關閉馬賽克選項，或在電腦、iPhone 或 iPad 上匯出。",
+    export_result_title: "匯出完成",
+    export_result_desc: "影片已準備好（{0} MB）。請選擇儲存方式。",
+    export_result_share: "分享 · 儲存到照片",
+    export_result_download: "儲存到檔案",
+    export_result_close: "關閉",
     theme_paper_blue: "紙白·藍",
     theme_paper_violet: "紙白·紫",
     theme_paper_rose: "紙白·玫瑰",
@@ -1572,6 +1617,7 @@ export class I18nManager {
       { id: 'chk-qr', text: dict.chk_qr },
       { id: 'chk-rear-crop', text: dict.chk_rear_crop },
       { id: 'chk-rear-correction', text: dict.chk_rear_correction },
+      { id: 'chk-plate-blur', text: dict.chk_plate_blur },
       { id: 'chk-face-blur', text: dict.chk_face_blur },
     ];
 

@@ -1898,6 +1898,38 @@ kbd {
   background: #b62324;
 }
 
+/* Export result dialog (iOS share sheet / file download choice) */
+.export-result-actions {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.export-result-actions .btn {
+  width: 100%;
+}
+
+.export-result-filename {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #8b96a8;
+  word-break: break-all;
+}
+
+.btn-export-result-secondary {
+  background: #1a2231;
+  color: #e6edf3;
+  border: 1px solid #2c3a52;
+  font-weight: 600;
+  padding: 11px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+}
+
+.btn-export-result-secondary:hover {
+  background: #232e42;
+}
+
 .btn-export-cancel:active {
   background: #8e1a1b;
 }

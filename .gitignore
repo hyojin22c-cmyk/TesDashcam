@@ -9,3 +9,6 @@ docs/
 # Generated multilingual introductions (source lives in intro/)
 public/intro/
 public/legal/
+
+# ONNX Runtime Web files copied from node_modules (scripts/copy-privacy-runtime.mjs)
+public/ort/

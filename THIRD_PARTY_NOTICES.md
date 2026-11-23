@@ -29,6 +29,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## Privacy mosaic: runtime and models (experimental feature)
+
+These files are downloaded by the browser only when a mosaic option is switched on.
+
+- **onnxruntime-web 1.22.0** (`ort.wasm` JavaScript bundle and `ort/ort-wasm-simd-threaded.wasm`). Source: https://github.com/microsoft/onnxruntime. MIT, copyright Microsoft Corporation; text in `licenses/onnxruntime-web-MIT.txt`. The WebAssembly binary additionally contains third-party components listed in the upstream `ThirdPartyNotices.txt`, which is not reproduced here.
+- **YuNet face model**, `models/face_detection_yunet.onnx`, SHA-256 8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4, copied unchanged from the Python predecessor repository. MIT, copyright (c) 2020 Shiqi Yu; text in `licenses/YuNet-MIT.txt`.
+- **YOLOv8n vehicle model**, `models/yolov8n.onnx`, SHA-256 d1062b1827f1e8f2319cfcee5a55278d477d0d875d14628ead9686d276cc61b8, copied unchanged from the Python predecessor repository. Author Ultralytics; embedded license AGPL-3.0. The model keeps its AGPL-3.0 terms and is not relicensed as GPL-3.0-only project code; text in `licenses/YOLOv8n-AGPL-3.0.txt`. The predecessor's license audit lists the redistribution of this model as an unresolved item, and that status carries over to this web build unchanged.
+- **Ported logic**: `src/core/privacy/plateDetector.ts`, `boxTracker.ts` and the detection post-processing are ports of `core/privacy_filter.py` from the Python predecessor (see the next section).
+
 ## Python predecessor and ports
 
 Source: https://github.com/mhsong282828221212123123123/CT-dashcam-studio

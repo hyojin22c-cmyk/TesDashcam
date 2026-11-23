@@ -4,6 +4,7 @@ import { OpenStreetMapTileLoader } from './mapLoader';
 import { CameraKey } from './constants';
 import { drawQRCode } from './qrCode';
 import { correctRearFrame } from './rearCorrection';
+import type { NormalizedRect, PrivacyBoxes } from './privacy/privacyEngine';
 
 const REAR_BOTTOM_CROP = 0.15;
 
@@ -21,6 +22,8 @@ export interface RenderOptions {
   qr: boolean;
   rear_crop: boolean;
   rear_correction: boolean;
+  /** Regions to mosaic, per camera, in fractions of that camera's frame. */
+  privacyBoxes?: PrivacyBoxes;
   brightness: number; // -100 ~ 100, default 0
   contrast: number; // 0.5 ~ 2.0, default 1.0
   playbackSpeed: number;
@@ -86,7 +89,8 @@ export class OverlayRenderer {
     label: string,
     scale = 1.0,
     bottomCrop = 0,
-    correctDistortion = false
+    correctDistortion = false,
+    mosaic?: NormalizedRect[]
   ): void {
     ctx.save();
     ctx.beginPath();
@@ -98,8 +102,9 @@ export class OverlayRenderer {
 
     if (source) {
       try {
-        const sw = (source as any).videoWidth || (source as any).width || w;
-        const sh = (source as any).videoHeight || (source as any).height || h;
+        // Video elements report videoWidth, decoded VideoFrames displayWidth, canvases and images width.
+        const sw = (source as any).videoWidth || (source as any).displayWidth || (source as any).width || w;
+        const sh = (source as any).videoHeight || (source as any).displayHeight || (source as any).height || h;
 
         if (sw > 0 && sh > 0) {
           const sRatio = sw / sh;
@@ -123,6 +128,18 @@ export class OverlayRenderer {
             : null;
           if (corrected) ctx.drawImage(corrected, x, y, w, h);
           else ctx.drawImage(source, sx, sy, sCropW, sCropH, x, y, w, h);
+
+          if (mosaic && mosaic.length > 0) {
+            // The distortion correction moves pixels radially; a wider mosaic still covers them.
+            const grow = corrected ? 0.25 : 0.04;
+            for (const box of mosaic) {
+              const bw = (box.w * sw * (1 + grow * 2)) / sCropW * w;
+              const bh = (box.h * sh * (1 + grow * 2)) / sCropH * h;
+              const bx = x + ((box.x - box.w * grow) * sw - sx) / sCropW * w;
+              const by = y + ((box.y - box.h * grow) * sh - sy) / sCropH * h;
+              this.drawMosaic(ctx, bx, by, bw, bh);
+            }
+          }
         }
       } catch {
         // Fallback if video frame not ready
@@ -143,6 +160,35 @@ export class OverlayRenderer {
   }
 
   // Matches PC version: small yellow badge in the top-left corner
+  private static mosaicCanvas: HTMLCanvasElement | null = null;
+
+  /** Pixelates a region of the canvas in place. The caller's clip keeps it inside the slot. */
+  static drawMosaic(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+    const x1 = Math.max(0, Math.floor(x)), y1 = Math.max(0, Math.floor(y));
+    const x2 = Math.min(ctx.canvas.width, Math.ceil(x + w)), y2 = Math.min(ctx.canvas.height, Math.ceil(y + h));
+    const rw = x2 - x1, rh = y2 - y1;
+    if (rw < 2 || rh < 2) return;
+    // About three cells across the short side: no character or facial feature survives.
+    const cell = Math.max(4, Math.round(Math.min(rw, rh) / 3));
+    const tw = Math.max(1, Math.round(rw / cell)), th = Math.max(1, Math.round(rh / cell));
+    if (!this.mosaicCanvas) this.mosaicCanvas = document.createElement('canvas');
+    const tiny = this.mosaicCanvas;
+    if (tiny.width !== tw || tiny.height !== th) { tiny.width = tw; tiny.height = th; }
+    const tctx = tiny.getContext('2d');
+    if (!tctx) return;
+    tctx.imageSmoothingEnabled = true;
+    tctx.drawImage(ctx.canvas, x1, y1, rw, rh, 0, 0, tw, th);
+
+    const filter = ctx.filter;
+    const smoothing = ctx.imageSmoothingEnabled;
+    // The region already carries the brightness/contrast filter; do not apply it twice.
+    ctx.filter = 'none';
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tiny, 0, 0, tw, th, x1, y1, rw, rh);
+    ctx.imageSmoothingEnabled = smoothing;
+    ctx.filter = filter;
+  }
+
   static drawSlotBadge(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -414,6 +460,7 @@ export class OverlayRenderer {
     const rearCrop = options.rear_crop ? REAR_BOTTOM_CROP : 0;
     const hasBottomHud = bottomH > 0;
     const mapW = options.map ? offsetX : 0;
+    const privacy: PrivacyBoxes = options.privacyBoxes || {};
 
     // Clear background
     ctx.fillStyle = '#080b10';
@@ -424,10 +471,10 @@ export class OverlayRenderer {
       const halfW = Math.floor(outW / 2);
       const halfH = Math.floor(frontH / 2);
 
-      this.drawSubSlotCover(ctx, 0, 0, halfW, halfH, frames.front, 'FRONT', scale);
-      this.drawSubSlotCover(ctx, 0, halfH, halfW, frontH - halfH, frames.back, 'REAR', scale, rearCrop, options.rear_correction);
-      this.drawSubSlotCover(ctx, halfW, 0, outW - halfW, halfH, frames.left_repeater, 'LEFT REPEATER', scale);
-      this.drawSubSlotCover(ctx, halfW, halfH, outW - halfW, frontH - halfH, frames.right_repeater, 'RIGHT REPEATER', scale);
+      this.drawSubSlotCover(ctx, 0, 0, halfW, halfH, frames.front, 'FRONT', scale, 0, false, privacy.front);
+      this.drawSubSlotCover(ctx, 0, halfH, halfW, frontH - halfH, frames.back, 'REAR', scale, rearCrop, options.rear_correction, privacy.back);
+      this.drawSubSlotCover(ctx, halfW, 0, outW - halfW, halfH, frames.left_repeater, 'LEFT REPEATER', scale, 0, false, privacy.left_repeater);
+      this.drawSubSlotCover(ctx, halfW, halfH, outW - halfW, frontH - halfH, frames.right_repeater, 'RIGHT REPEATER', scale, 0, false, privacy.right_repeater);
 
       // Grid dividers
       ctx.strokeStyle = '#373c46';
@@ -449,18 +496,18 @@ export class OverlayRenderer {
         right_pillar: 'RIGHT PILLAR',
       };
       this.drawSubSlotCover(ctx, 0, 0, outW, frontH, frames[key], labelMap[key] || key.toUpperCase(), scale,
-        key === 'back' ? rearCrop : 0, key === 'back' && options.rear_correction);
+        key === 'back' ? rearCrop : 0, key === 'back' && options.rear_correction, privacy[key]);
     } else {
       // 기본 (1:3 세로배치)
       const subW = Math.round(480 * scale);
       const frontW = outW - subW;
 
-      this.drawSubSlotCover(ctx, 0, 0, frontW, frontH, frames.front, 'FRONT MAIN', scale);
+      this.drawSubSlotCover(ctx, 0, 0, frontW, frontH, frames.front, 'FRONT MAIN', scale, 0, false, privacy.front);
 
       const subH = Math.floor(frontH / 3);
-      this.drawSubSlotCover(ctx, frontW, 0, subW, subH, frames.back, 'REAR', scale, rearCrop, options.rear_correction);
-      this.drawSubSlotCover(ctx, frontW, subH, subW, subH, frames.left_repeater, 'LEFT REPEATER', scale);
-      this.drawSubSlotCover(ctx, frontW, subH * 2, subW, frontH - subH * 2, frames.right_repeater, 'RIGHT REPEATER', scale);
+      this.drawSubSlotCover(ctx, frontW, 0, subW, subH, frames.back, 'REAR', scale, rearCrop, options.rear_correction, privacy.back);
+      this.drawSubSlotCover(ctx, frontW, subH, subW, subH, frames.left_repeater, 'LEFT REPEATER', scale, 0, false, privacy.left_repeater);
+      this.drawSubSlotCover(ctx, frontW, subH * 2, subW, frontH - subH * 2, frames.right_repeater, 'RIGHT REPEATER', scale, 0, false, privacy.right_repeater);
     }
 
     // B-Pillar PIP
@@ -470,7 +517,7 @@ export class OverlayRenderer {
       const ph = Math.round((is2x2 ? 132 : 180) * scale);
 
       if (frames.left_pillar) {
-        this.drawSubSlotCover(ctx, Math.round(8 * scale), frontH - ph - Math.round(8 * scale), pw, ph, frames.left_pillar, 'LEFT PILLAR', scale);
+        this.drawSubSlotCover(ctx, Math.round(8 * scale), frontH - ph - Math.round(8 * scale), pw, ph, frames.left_pillar, 'LEFT PILLAR', scale, 0, false, privacy.left_pillar);
       }
       if (frames.right_pillar) {
         const is2x2 = options.layout === '2x2 분할 (전후/좌우)';
@@ -481,7 +528,7 @@ export class OverlayRenderer {
           const frontW = outW - Math.round(480 * scale);
           px = frontW - pw - Math.round(8 * scale);
         }
-        this.drawSubSlotCover(ctx, px, frontH - ph - Math.round(8 * scale), pw, ph, frames.right_pillar, 'RIGHT PILLAR', scale);
+        this.drawSubSlotCover(ctx, px, frontH - ph - Math.round(8 * scale), pw, ph, frames.right_pillar, 'RIGHT PILLAR', scale, 0, false, privacy.right_pillar);
       }
     }
 

@@ -232,5 +232,14 @@
   "theme_paper_sand": "Papel arena",
   "feedback_link": "Informar de un problema / Enviar comentarios",
   "feedback_login_note": "Se requiere iniciar sesión en Google",
-  "intro_link": "Acerca del proyecto"
+  "intro_link": "Acerca del proyecto",
+  "export_result_title": "Exportación completada",
+  "export_result_desc": "Tu vídeo está listo ({0} MB). Elige cómo guardarlo.",
+  "export_result_share": "Compartir · Guardar en Fotos",
+  "export_result_download": "Guardar en Archivos",
+  "export_result_close": "Cerrar",
+  "chk_plate_blur": "Mosaico de matrículas (beta)",
+  "toast_privacy_loading": "Cargando los modelos de mosaico…",
+  "alert_privacy_failed": "No se pudo cargar la función de mosaico.\nPara proteger la privacidad, la exportación se cancela en lugar de guardarse sin mosaico.\n({0})",
+  "alert_privacy_android": "La exportación con mosaico aún no es compatible con Android.\nDesactiva el mosaico o exporta en un PC, iPhone o iPad."
 }
