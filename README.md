@@ -113,7 +113,7 @@ Original project code is licensed **GPL-3.0-only** where the project owner holds
 - [Web third-party licenses](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/legal/third-party.html)
 - [Web privacy settings](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/legal/index.html)
 
-The viewer retains GA ID `G-E05V74Q9Q7` using worldwide Basic Consent Mode v2 opt-in. Intro/legal pages share the origin-local choice but introduce no new tracking. Rejection does not gate editing or maps. The compact Privacy & Licenses entry reopens preferences. Legal documents are canonical English; navigation and consent explanations cover all eight UI languages. `scripts/build-intro.mjs` also generates `public/legal/` from the reviewed sources. Generated files are ignored; no Markdown paths are used for deployed UI links.
+This fork has Google Analytics and the feedback form removed: no measurement ID is shipped and no consent notice is shown. The compact Privacy & Licenses entry opens the legal page. Legal documents are canonical English; navigation and consent explanations cover all eight UI languages. `scripts/build-intro.mjs` also generates `public/legal/` from the reviewed sources. Generated files are ignored; no Markdown paths are used for deployed UI links.
 
 Build: `npm ci`, `npm test`, `npm run build` (includes TypeScript checking). Use `VITE_BASE_PATH=/CT-dashcam-studio-WEB/` for the DEV artifact or `/CT-dashcam-studio-WEB/` for a production-path validation build. There is no configured lint command. The existing dual-branch workflow remains unchanged. The owner authorized promotion to main on 2026-11-01. Both production and DEV builds include the shared consent and legal pages under their respective base paths.
 

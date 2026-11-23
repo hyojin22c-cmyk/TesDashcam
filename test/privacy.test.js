@@ -3,7 +3,7 @@ import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { CONSENT_KEY, parseConsent, createAnalyticsConsent } from '../legal/consent.js';
+import { ANALYTICS_ENABLED, CONSENT_KEY, parseConsent, createAnalyticsConsent } from '../legal/consent.js';
 import { PRIVACY_STRINGS } from '../legal/strings.js';
 import { buildLegal, legalLinks, markdown } from '../scripts/build-legal.mjs';
 import { renderIntro } from '../scripts/build-intro.mjs';
@@ -121,9 +121,11 @@ describe('Legal pages, translations and distribution', () => {
     expect(html).not.toContain('data-measurement-id');
     expect(legalLinks(lang, '../../legal/')).toContain(`href="../../legal/privacy.html?lang=${lang}"`);
   });
-  it('uses one shared consent module and preserves the sole viewer measurement ID', () => {
+  it('uses one shared consent module and ships no measurement ID or feedback form', () => {
     const viewer = readFileSync('index.html','utf8');
-    expect(viewer).toContain('data-measurement-id="G-E05V74Q9Q7"');
+    expect(viewer).not.toContain('data-measurement-id');
+    expect(viewer).not.toContain('forms.gle');
+    expect(ANALYTICS_ENABLED).toBe(false);
     expect(viewer).not.toContain('src="https://www.googletagmanager.com');
     expect(viewer).toContain('src="/legal/consent.js"');
     expect(viewer).toContain('data-privacy-settings');

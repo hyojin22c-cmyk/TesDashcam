@@ -3,6 +3,9 @@ import { PRIVACY_STRINGS } from './strings.js';
 
 export const CONSENT_KEY = 'ct_analytics_consent';
 export const CONSENT_VERSION = 1;
+// This fork ships without analytics: no measurement ID is used, no consent notice is shown,
+// and the Privacy & Licenses links open the legal page instead of a consent panel.
+export const ANALYTICS_ENABLED = false;
 const deniedSignals = {
   analytics_storage: 'denied', ad_storage: 'denied',
   ad_user_data: 'denied', ad_personalization: 'denied',
@@ -124,7 +127,7 @@ export function initPrivacyUI(win = window, doc = document) {
   let storage;
   try { storage = win.localStorage; } catch {}
   const controller = createAnalyticsConsent({ win, doc, storage,
-    measurementId: script.dataset.measurementId || '',
+    measurementId: ANALYTICS_ENABLED ? script.dataset.measurementId || '' : '',
     environment: script.dataset.environment || (win.location.pathname.includes('/dev/') ? 'development' : 'production') });
   win.__ctPrivacy = controller;
   const lang = () => PRIVACY_STRINGS[doc.documentElement.lang] ? doc.documentElement.lang : 'en';
@@ -152,6 +155,7 @@ export function initPrivacyUI(win = window, doc = document) {
     doc.querySelectorAll('[data-privacy-settings]').forEach(el => {
       el.textContent = strings[el.dataset.privacyLabel || 'preferences'] + (el.hasAttribute('data-show-license') ? ' · GPL-3.0-only' : '');
       el.setAttribute('href', legalURL('index.html'));
+      if (!ANALYTICS_ENABLED) return;
       el.setAttribute('aria-controls', 'ct-privacy-notice');
       el.setAttribute('aria-expanded', String(!panel.hidden));
       el.setAttribute('title', strings.change);
@@ -178,15 +182,17 @@ export function initPrivacyUI(win = window, doc = document) {
     // dismiss the notice; settings remain available in the footer.
     if (controller.persistent) close();
   }));
-  doc.addEventListener('click', event => {
+  if (ANALYTICS_ENABLED) doc.addEventListener('click', event => {
     const trigger = event.target.closest?.('[data-privacy-settings]');
     if (trigger) { event.preventDefault(); open(trigger); }
   });
   const mount = () => {
-    doc.body.appendChild(panel);
-    panel.hidden = controller.choice !== null;
+    if (ANALYTICS_ENABLED) {
+      doc.body.appendChild(panel);
+      panel.hidden = controller.choice !== null;
+      controller.subscribe(() => { if (!controller.choice) panel.hidden = false; render(); });
+    }
     render();
-    controller.subscribe(() => { if (!controller.choice) panel.hidden = false; render(); });
     // Viewer localization changes <html lang>; intro pages already have lang.
     new win.MutationObserver(render).observe(doc.documentElement, { attributes: true, attributeFilter: ['lang'] });
   };
