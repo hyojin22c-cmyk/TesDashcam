@@ -6,10 +6,10 @@ import { buildLegal, legalLinks } from './build-legal.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 export const INTRO_CONTENT = JSON.parse(readFileSync(new URL('../intro/content.json', import.meta.url), 'utf8'));
-export const PRODUCTION = 'https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/';
+export const PRODUCTION = 'https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/';
 // SEO language tags are independent of the existing UI locale IDs and URL slugs.
 const hreflang = lang => ({ 'zh-CN': 'zh-Hans', 'zh-TW': 'zh-Hant' }[lang] || lang);
-const WEB_REPO = 'https://github.com/mhsong282828221212123123123/CT-dashcam-studio-WEB';
+const WEB_REPO = 'https://github.com/hyojin22c-cmyk/CT-dashcam-studio-WEB';
 const PC_REPO = 'https://github.com/mhsong282828221212123123123/CT-dashcam-studio';
 const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const lines = value => escape(value).replace(/\n/g, '<br>');

@@ -8,7 +8,7 @@ import { PRIVACY_STRINGS } from '../legal/strings.js';
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const read = name => readFileSync(path.join(repo, name), 'utf8');
-const sourceRepo = 'https://github.com/mhsong282828221212123123123/CT-dashcam-studio-WEB';
+const sourceRepo = 'https://github.com/hyojin22c-cmyk/CT-dashcam-studio-WEB';
 
 export function legalLinks(lang = 'en', prefix = './legal/') {
   const s = PRIVACY_STRINGS[lang] || PRIVACY_STRINGS.en;

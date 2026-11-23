@@ -2,6 +2,9 @@
 
 **License: [GPL-3.0-only](LICENSE)** — original project code; third-party terms and provenance limits: [license audit](LICENSE_AUDIT.md).
 
+> **포크 안내** — 이 저장소는 [원본 CT-dashcam-studio-WEB](https://github.com/mhsong282828221212123123123/CT-dashcam-studio-WEB)의 포크입니다. iPhone/iPad 내보내기 개선과 번호판·얼굴 모자이크(실험)가 추가되어 있습니다.  
+> 테스트 주소: <https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/>
+
 > **순수 웹 기술(TypeScript + Canvas + WebCodecs) 기반의 고성능 테슬라 블랙박스 뷰어 및 멀티채널 편집·추출 스튜디오**  
 > PC 설치 없이 브라우저(Edge, Chrome 등)에서 바로 테슬라 Dashcam/Sentry 영상 및 실제 차량 텔레메트리(속도, 스티어링 각도, 페달, FSD 모드, 방향지시등, GPS 미니맵)를 동기 재생하고 고화질 MP4로 내보낼 수 있습니다.
 
@@ -80,7 +83,7 @@ npm run build
 ## 정식판과 테스트판 배포
 
 - `main`: 정식 주소 `/CT-dashcam-studio-WEB/`
-- `dev`: 테스트 주소 `/CT-dashcam-studio-WEB/dev/` (Tier 옆에 `DEV` 표시)
+- `dev`: 테스트 주소 `/CT-dashcam-studio-WEB/` (Tier 옆에 `DEV` 표시)
 
 일반 수정은 `dev`에서 진행하고 테스트 주소에서 확인한 뒤, 정식 반영할 때 `main`에 병합합니다.
 두 브랜치 중 하나에 푸시하면 GitHub Actions가 각 브랜치를 별도로 체크아웃하고 검사·빌드합니다.
@@ -94,7 +97,7 @@ Pages는 사이트 전체를 교체하므로, 매번 `main` 빌드를 루트에,
 
 ## Introduction / 소개
 
-[English](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/intro/en/) · [한국어](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/intro/kr/) · [日本語](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/intro/jp/) · [简体中文](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/intro/zh-cn/) · [繁體中文](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/intro/zh-tw/) · [Deutsch](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/intro/de/) · [Français](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/intro/fr/) · [Español](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/intro/es/)
+[English](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/intro/en/) · [한국어](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/intro/kr/) · [日本語](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/intro/jp/) · [简体中文](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/intro/zh-cn/) · [繁體中文](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/intro/zh-tw/) · [Deutsch](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/intro/de/) · [Français](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/intro/fr/) · [Español](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/intro/es/)
 
 소개 페이지는 `intro/`의 공통 템플릿·번역으로 생성됩니다. `npm run dev`와 `npm run build`가 자동으로 `scripts/build-intro.mjs`를 실행합니다. 최상위 URL은 뷰어이며, DEV 소개 페이지는 검색 제외(`noindex`) 상태로 배포됩니다.
 
@@ -105,14 +108,14 @@ Original project code is licensed **GPL-3.0-only** where the project owner holds
 
 - [GPLv3 text](LICENSE), [Third-party notices](THIRD_PARTY_NOTICES.md), [License/provenance audit](LICENSE_AUDIT.md)
 - [Privacy Policy](PRIVACY.md), [Data-flow audit](PRIVACY_DATA_FLOW.md), [Repository discovery](COMPLIANCE_DISCOVERY.md), [Verification](COMPLIANCE_VERIFICATION.md)
-- [DEV privacy policy](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/dev/legal/privacy.html)
-- [DEV GPL text](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/dev/legal/license.html)
-- [DEV third-party licenses](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/dev/legal/third-party.html)
-- [DEV privacy settings](https://mhsong282828221212123123123.github.io/CT-dashcam-studio-WEB/dev/legal/index.html)
+- [Web privacy policy](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/legal/privacy.html)
+- [Web GPL text](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/legal/license.html)
+- [Web third-party licenses](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/legal/third-party.html)
+- [Web privacy settings](https://hyojin22c-cmyk.github.io/CT-dashcam-studio-WEB/legal/index.html)
 
 The viewer retains GA ID `G-E05V74Q9Q7` using worldwide Basic Consent Mode v2 opt-in. Intro/legal pages share the origin-local choice but introduce no new tracking. Rejection does not gate editing or maps. The compact Privacy & Licenses entry reopens preferences. Legal documents are canonical English; navigation and consent explanations cover all eight UI languages. `scripts/build-intro.mjs` also generates `public/legal/` from the reviewed sources. Generated files are ignored; no Markdown paths are used for deployed UI links.
 
-Build: `npm ci`, `npm test`, `npm run build` (includes TypeScript checking). Use `VITE_BASE_PATH=/CT-dashcam-studio-WEB/dev/` for the DEV artifact or `/CT-dashcam-studio-WEB/` for a production-path validation build. There is no configured lint command. The existing dual-branch workflow remains unchanged. The owner authorized promotion to main on 2026-11-01. Both production and DEV builds include the shared consent and legal pages under their respective base paths.
+Build: `npm ci`, `npm test`, `npm run build` (includes TypeScript checking). Use `VITE_BASE_PATH=/CT-dashcam-studio-WEB/` for the DEV artifact or `/CT-dashcam-studio-WEB/` for a production-path validation build. There is no configured lint command. The existing dual-branch workflow remains unchanged. The owner authorized promotion to main on 2026-11-01. Both production and DEV builds include the shared consent and legal pages under their respective base paths.
 
 For redistribution, retain LICENSE, THIRD_PARTY_NOTICES.md and licenses/, and provide the corresponding source/build scripts for the exact artifact revision. Generated legal pages link to that revision's source. Resolve the documented artwork/upstream and OSM attribution issues before claiming complete international release clearance.
 

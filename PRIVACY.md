@@ -6,9 +6,9 @@ Deployment scope: this revised source is used for production and development fol
 
 ## Operator and contact
 
-CT Dashcam Studio Web is an independent project maintained under the GitHub account `mhsong282828221212123123123` (Companion Turret). It is not affiliated with Tesla, Inc. The repository does not identify a company, postal address or private contact email; none is invented here.
+CT Dashcam Studio Web is an independent project originally created under the GitHub account `mhsong282828221212123123123` (Companion Turret). This copy is a fork maintained under the GitHub account `hyojin22c-cmyk`. It is not affiliated with Tesla, Inc. The repository does not identify a company, postal address or private contact email; none is invented here.
 
-Contact the maintainer through [GitHub Issues](https://github.com/mhsong282828221212123123123/CT-dashcam-studio-WEB/issues) or the linked [feedback form](https://forms.gle/Lh1doyRZNAZ6cqRk9). GitHub Issues are public: do not post private footage, identifiers or precise locations there. The feedback form is an external Google service, requires Google sign-in for its upload feature, and any information or files you submit there leave the local editor.
+Contact the maintainer through [GitHub Issues](https://github.com/hyojin22c-cmyk/CT-dashcam-studio-WEB/issues) or the linked [feedback form](https://forms.gle/Lh1doyRZNAZ6cqRk9). GitHub Issues are public: do not post private footage, identifiers or precise locations there. The feedback form is an external Google service, requires Google sign-in for its upload feature, and any information or files you submit there leave the local editor.
 
 ## Video, filenames, frames, telemetry and exports
 
