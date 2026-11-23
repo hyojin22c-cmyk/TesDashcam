@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hyojin22c-cmyk.github.io/TesDashcam/sitemap.xml
